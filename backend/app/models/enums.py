@@ -1,0 +1,80 @@
+from enum import StrEnum
+
+
+class Decision(StrEnum):
+    APPROVED = "APPROVED"
+    BLOCKED = "BLOCKED"
+    PENDING_APPROVAL = "PENDING_APPROVAL"
+
+
+class CheckStatus(StrEnum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    REVIEW = "REVIEW"
+    SKIP = "SKIP"
+
+
+class TxnState(StrEnum):
+    """Every state a transaction can occupy. See services/state_machine.py
+    for the legal transitions between them."""
+
+    CREATED = "CREATED"
+    EVALUATING = "EVALUATING"
+    BLOCKED = "BLOCKED"
+    PENDING_APPROVAL = "PENDING_APPROVAL"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    EXPIRED = "EXPIRED"
+    PAYMENT_CREATED = "PAYMENT_CREATED"
+    PAYMENT_CREATION_FAILED = "PAYMENT_CREATION_FAILED"
+    PAYMENT_SUCCESS = "PAYMENT_SUCCESS"
+    PAYMENT_FAILED = "PAYMENT_FAILED"
+
+
+#: States with no outgoing transitions. PAYMENT_CREATION_FAILED is
+#: deliberately absent: a provider outage is retryable, and authorization
+#: already succeeded, so the transaction is not finished.
+TERMINAL_STATES = {
+    TxnState.BLOCKED,
+    TxnState.REJECTED,
+    TxnState.EXPIRED,
+    TxnState.PAYMENT_SUCCESS,
+    TxnState.PAYMENT_FAILED,
+}
+
+
+class PolicyStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    REVOKED = "REVOKED"
+    EXHAUSTED = "EXHAUSTED"
+    EXPIRED = "EXPIRED"
+
+
+class AgentStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    SUSPENDED = "SUSPENDED"
+
+
+class ApprovalDecision(StrEnum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    EXPIRED = "EXPIRED"
+
+
+class EventType(StrEnum):
+    REQUEST_RECEIVED = "REQUEST_RECEIVED"
+    EVALUATION_STARTED = "EVALUATION_STARTED"
+    CHECK_EVALUATED = "CHECK_EVALUATED"
+    DECISION_MADE = "DECISION_MADE"
+    DUPLICATE_SUPPRESSED = "DUPLICATE_SUPPRESSED"
+    BUDGET_RESERVED = "BUDGET_RESERVED"
+    BUDGET_RELEASED = "BUDGET_RELEASED"
+    HUMAN_APPROVED = "HUMAN_APPROVED"
+    HUMAN_REJECTED = "HUMAN_REJECTED"
+    APPROVAL_EXPIRED = "APPROVAL_EXPIRED"
+    PAYMENT_CREATED = "PAYMENT_CREATED"
+    PAYMENT_CREATION_FAILED = "PAYMENT_CREATION_FAILED"
+    PAYMENT_SUCCEEDED = "PAYMENT_SUCCEEDED"
+    PAYMENT_FAILED = "PAYMENT_FAILED"
+    STATE_CHANGED = "STATE_CHANGED"
