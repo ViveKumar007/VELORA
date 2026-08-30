@@ -38,6 +38,27 @@ requires_db = pytest.mark.skipif(
 )
 
 
+@pytest.fixture(autouse=True)
+def force_stub_provider(monkeypatch):
+    """Never let the suite touch a live payment provider.
+
+    The tests previously inherited PAYMENT_PROVIDER from .env. The moment the
+    app was switched to Razorpay for real, the suite silently started calling
+    Razorpay's API -- slow, flaky, dependent on someone's keys being present,
+    and capable of creating real orders as a side effect of running tests.
+
+    Autouse and unconditional: a test that wants the Razorpay provider must
+    ask for it explicitly rather than inheriting it by accident.
+    """
+    from app.config import settings
+    from app.services.payments import get_provider
+
+    monkeypatch.setattr(settings, "payment_provider", "stub")
+    get_provider.cache_clear()
+    yield
+    get_provider.cache_clear()
+
+
 @pytest.fixture(scope="session")
 def engine():
     from app.models import Base
@@ -81,11 +102,17 @@ def world(db):
         User,
         utcnow,
     )
+    from app.auth import hash_password, issue_session
+    from app.models import Merchant
     from app.security import generate_agent_token
     from app.utils.money import rupees_to_paise
 
     now = utcnow()
-    user = User(name="Demo User", email="demo@velora.local")
+    user = User(
+        name="Demo User",
+        email="demo@velora.local",
+        password_hash=hash_password("velora123"),
+    )
     db.add(user)
     db.flush()
 
@@ -144,10 +171,32 @@ def world(db):
         db.add(product)
     db.commit()
 
+    merchant = Merchant(
+        slug="demostore",
+        name="DemoStore",
+        description="Test merchant.",
+        categories=["electronics"],
+        email="demostore@velora.local",
+        password_hash=hash_password("merchant123"),
+        agent_ready=True,
+        status="ACTIVE",
+    )
+    db.add(merchant)
+    db.commit()
+
     return {
         "user": user,
         "agent": agent,
         "policy": policy,
         "token": raw_token,
         "products": products,
+        "merchant": merchant,
+        # Ready-made sessions so tests exercise real auth rather than a
+        # bypass. A test that wants to prove auth works signs in properly.
+        "session": issue_session(user.id, "user"),
+        "merchant_session": issue_session(merchant.id, "merchant"),
+        "auth": {"Authorization": f"Bearer {issue_session(user.id, 'user')}"},
+        "merchant_auth": {
+            "Authorization": f"Bearer {issue_session(merchant.id, 'merchant')}"
+        },
     }

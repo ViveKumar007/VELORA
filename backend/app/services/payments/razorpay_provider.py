@@ -65,3 +65,54 @@ class RazorpayProvider:
             return False
         expected = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, signature or "")
+
+    def enabled_methods(self) -> dict[str, bool] | None:
+        """Which payment methods this account can actually accept.
+
+        Razorpay enables methods per account, and an unactivated test account
+        typically has UPI off. Offering a disabled method produces a dead end
+        that looks like a bug in our app, so we ask and only show what works.
+
+        Returns None on any failure: an unavailable methods list should degrade
+        to "show everything", never to "show nothing".
+        """
+        import json
+        import urllib.error
+        import urllib.request
+
+        url = f"https://api.razorpay.com/v1/methods?key_id={settings.razorpay_key_id}"
+        try:
+            with urllib.request.urlopen(url, timeout=8) as response:
+                payload = json.loads(response.read())
+        except (urllib.error.URLError, ValueError, TimeoutError):
+            return None
+
+        # Keep only the simple on/off flags Checkout understands as `method`.
+        wanted = ("card", "netbanking", "wallet", "upi", "emi", "paylater", "cardless_emi")
+        methods = {k: bool(payload.get(k)) for k in wanted if k in payload}
+
+        # netbanking and wallet arrive as dicts of providers, not booleans.
+        for key in ("netbanking", "wallet"):
+            value = payload.get(key)
+            if isinstance(value, dict):
+                methods[key] = any(value.values()) if value else False
+
+        return methods or None
+
+    def verify_payment_signature(
+        self, order_id: str, payment_id: str, signature: str
+    ) -> bool:
+        """HMAC-SHA256 over "order_id|payment_id", keyed with the API secret.
+
+        This is Razorpay's documented client-callback scheme. Note it uses the
+        KEY SECRET, not the webhook secret -- they are different credentials
+        and mixing them up fails silently in the safe direction (rejection).
+        """
+        if not order_id or not payment_id or not signature:
+            return False
+        expected = hmac.new(
+            settings.razorpay_key_secret.encode(),
+            f"{order_id}|{payment_id}".encode(),
+            hashlib.sha256,
+        ).hexdigest()
+        return hmac.compare_digest(expected, signature)

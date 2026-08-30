@@ -6,6 +6,8 @@
  * agent when it asks permission, and as the user when it approves.
  */
 
+import { clearSession, getSession, setProfile, setSession } from './session'
+
 const TOKEN_KEY = 'velora.agentToken'
 
 /**
@@ -40,13 +42,24 @@ export class ApiError extends Error {
   }
 }
 
-async function request(method, path, { body, agent = false } = {}) {
+/**
+ * `auth` selects which credential to present:
+ *   'user'     the signed-in buyer   (default for the buyer console)
+ *   'merchant' the signed-in seller
+ *   'agent'    an agent bearer token
+ *   'none'     public endpoints
+ */
+async function request(method, path, { body, auth = 'user' } = {}) {
   const headers = { 'Content-Type': 'application/json' }
   if (OPERATOR_TOKEN) headers['X-Velora-Token'] = OPERATOR_TOKEN
-  if (agent) {
+
+  if (auth === 'agent') {
     const token = getAgentToken()
     if (!token) throw new ApiError(401, 'No agent token set. Add one in the Agent Console.')
     headers.Authorization = `Bearer ${token}`
+  } else if (auth === 'user' || auth === 'merchant') {
+    const token = getSession(auth)
+    if (token) headers.Authorization = `Bearer ${token}`
   }
 
   const res = await fetch(path, {
@@ -59,16 +72,25 @@ async function request(method, path, { body, agent = false } = {}) {
   const payload = text ? JSON.parse(text) : null
 
   if (!res.ok) {
+    // A dead session should log you out rather than leave the UI retrying
+    // against a token the server has already rejected.
+    if (res.status === 401 && (auth === 'user' || auth === 'merchant')) {
+      clearSession(auth)
+      setProfile(auth, null)
+    }
     throw new ApiError(res.status, payload?.detail || res.statusText)
   }
   return payload
 }
 
 export const api = {
-  health: () => request('GET', '/api/health'),
+  health: () => request('GET', '/api/health', { auth: 'none' }),
+  config: () => request('GET', '/api/config', { auth: 'none' }),
   dashboard: () => request('GET', '/api/dashboard'),
 
-  products: () => request('GET', '/api/products'),
+  products: () => request('GET', '/api/products', { auth: 'none' }),
+  merchants: () => request('GET', '/api/merchants', { auth: 'none' }),
+  agentCatalog: () => request('GET', '/api/merchants/catalog', { auth: 'none' }),
 
   agents: () => request('GET', '/api/agents'),
   createAgent: (body) => request('POST', '/api/agents', { body }),
@@ -93,8 +115,38 @@ export const api = {
     request('POST', `/api/transactions/${id}/payment`, { body: { force_failure: forceFailure } }),
   simulatePayment: (id, succeed) =>
     request('POST', '/api/webhooks/simulate', { body: { transaction_id: id, succeed } }),
+  confirmPayment: (id, result) =>
+    request('POST', `/api/transactions/${id}/payment/confirm`, {
+      body: {
+        razorpay_payment_id: result.razorpay_payment_id,
+        razorpay_signature: result.razorpay_signature,
+      },
+    }),
 
   // Agent-authenticated calls.
-  runAgent: (body) => request('POST', '/api/agent/run', { body, agent: true }),
-  requestPurchase: (body) => request('POST', '/api/agent/request', { body, agent: true }),
+  runAgent: (body) => request('POST', '/api/agent/run', { body, auth: 'agent' }),
+  requestPurchase: (body) => request('POST', '/api/agent/request', { body, auth: 'agent' }),
+
+  // --- Auth ---
+  login: async (email, password) => {
+    const out = await request('POST', '/api/auth/login', {
+      body: { email, password },
+      auth: 'none',
+    })
+    setSession('user', out.token)
+    setProfile('user', out.user)
+    return out.user
+  },
+  merchantLogin: async (email, password) => {
+    const out = await request('POST', '/api/auth/merchant/login', {
+      body: { email, password },
+      auth: 'none',
+    })
+    setSession('merchant', out.token)
+    setProfile('merchant', out.merchant)
+    return out.merchant
+  },
+  me: () => request('GET', '/api/auth/me'),
+  merchantMe: () => request('GET', '/api/auth/merchant/me', { auth: 'merchant' }),
+  merchantConsole: () => request('GET', '/api/merchants/me', { auth: 'merchant' }),
 }

@@ -50,28 +50,33 @@ export function humanCode(code) {
 }
 
 export const DECISION_STYLE = {
-  APPROVED: { label: 'Approved', cls: 'text-emerald-300 bg-emerald-500/10 ring-emerald-500/30' },
-  PENDING_APPROVAL: { label: 'Needs approval', cls: 'text-amber-300 bg-amber-500/10 ring-amber-500/30' },
-  BLOCKED: { label: 'Blocked', cls: 'text-rose-300 bg-rose-500/10 ring-rose-500/30' },
+  APPROVED: { label: 'Approved', tone: 'ok' },
+  PENDING_APPROVAL: { label: 'Needs approval', tone: 'warn' },
+  BLOCKED: { label: 'Blocked', tone: 'danger' },
 }
 
 export const STATE_STYLE = {
-  CREATED: 'text-zinc-400 bg-zinc-500/10 ring-zinc-500/30',
-  EVALUATING: 'text-zinc-300 bg-zinc-500/10 ring-zinc-500/30',
-  BLOCKED: 'text-rose-300 bg-rose-500/10 ring-rose-500/30',
-  PENDING_APPROVAL: 'text-amber-300 bg-amber-500/10 ring-amber-500/30',
-  APPROVED: 'text-emerald-300 bg-emerald-500/10 ring-emerald-500/30',
-  REJECTED: 'text-zinc-300 bg-zinc-500/10 ring-zinc-500/30',
-  EXPIRED: 'text-zinc-400 bg-zinc-500/10 ring-zinc-500/30',
-  PAYMENT_CREATED: 'text-sky-300 bg-sky-500/10 ring-sky-500/30',
-  PAYMENT_CREATION_FAILED: 'text-orange-300 bg-orange-500/10 ring-orange-500/30',
-  PAYMENT_SUCCESS: 'text-emerald-200 bg-emerald-500/15 ring-emerald-400/40',
-  PAYMENT_FAILED: 'text-rose-300 bg-rose-500/10 ring-rose-500/30',
+  CREATED: 'muted',
+  EVALUATING: 'muted',
+  BLOCKED: 'danger',
+  PENDING_APPROVAL: 'warn',
+  APPROVED: 'ok',
+  REJECTED: 'muted',
+  EXPIRED: 'muted',
+  PAYMENT_CREATED: 'brand',
+  PAYMENT_CREATION_FAILED: 'warn',
+  PAYMENT_SUCCESS: 'ok',
+  PAYMENT_FAILED: 'danger',
 }
 
 export const CHECK_STYLE = {
-  PASS: { dot: 'bg-emerald-400', text: 'text-emerald-300', label: 'PASS' },
-  FAIL: { dot: 'bg-rose-400', text: 'text-rose-300', label: 'FAIL' },
-  REVIEW: { dot: 'bg-amber-400', text: 'text-amber-300', label: 'REVIEW' },
-  SKIP: { dot: 'bg-ink-600', text: 'text-zinc-500', label: 'SKIP' },
+  PASS: { dot: 'bg-[color:var(--color-ok)]', text: 'text-[color:var(--color-ok)]', label: 'PASS' },
+  FAIL: { dot: 'bg-[color:var(--color-danger)]', text: 'text-[color:var(--color-danger)]', label: 'FAIL' },
+  REVIEW: { dot: 'bg-[color:var(--color-warn)]', text: 'text-[color:var(--color-warn)]', label: 'REVIEW' },
+  SKIP: { dot: 'bg-ink-600', text: 'text-fg-faint', label: 'SKIP' },
+}
+
+/** Numeric rupee value for animated figures (CountUp needs a number). */
+export function paise(value) {
+  return Math.round((value || 0) / 100)
 }

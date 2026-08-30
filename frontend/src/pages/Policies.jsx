@@ -1,43 +1,30 @@
 import { useEffect, useState } from 'react'
-import { Alert, Badge, Button, Card, Empty, Field, Input, Mono, Spinner } from '../components/ui'
+import {
+  Alert,
+  Button,
+  Empty,
+  Field,
+  Input,
+  Loading,
+  Mono,
+  Rule,
+  Section,
+  Status,
+} from '../components/ui'
 import { useLiveResource } from '../hooks/useLive'
 import { api, setAgentToken } from '../lib/api'
 import { dateTimeOf, inr } from '../lib/format'
 
-const CATEGORIES = ['electronics', 'digital_goods', 'groceries', 'travel']
-const MERCHANTS = ['DemoStore', 'AudioHouse']
+const CATEGORIES = ['electronics', 'groceries', 'digital_goods', 'food', 'travel']
+const MERCHANTS = ['DemoStore', 'Blinkit', 'Zepto', 'Amazon', 'Swiggy']
 
-const STATUS_STYLE = {
-  ACTIVE: 'text-emerald-300 bg-emerald-500/10 ring-emerald-500/30',
-  EXHAUSTED: 'text-zinc-400 bg-zinc-500/10 ring-zinc-500/30',
-  EXPIRED: 'text-zinc-400 bg-zinc-500/10 ring-zinc-500/30',
-  REVOKED: 'text-rose-300 bg-rose-500/10 ring-rose-500/30',
-}
-
-function Chips({ options, selected, onToggle }) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {options.map((option) => {
-        const on = selected.includes(option)
-        return (
-          <button
-            key={option}
-            type="button"
-            onClick={() => onToggle(option)}
-            className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
-              on
-                ? 'border-brand-500 bg-brand-500/15 text-brand-400'
-                : 'border-ink-700 bg-ink-850 text-zinc-500 hover:text-zinc-300'
-            }`}
-          >
-            {option}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
+/**
+ * Authority, not a form.
+ *
+ * Sections separated by rules and labels rather than boxed panels, with the
+ * amount inputs sized to the thing they represent — a spending ceiling is the
+ * most consequential number on the page and should look it.
+ */
 export default function Policies() {
   const { data: policies, loading, reload } = useLiveResource(() => api.policies())
   const { data: agents, reload: reloadAgents } = useLiveResource(() => api.agents())
@@ -59,15 +46,14 @@ export default function Policies() {
   const [newToken, setNewToken] = useState(null)
 
   useEffect(() => {
-    if (!form.agent_id && agents?.length) {
-      setForm((f) => ({ ...f, agent_id: agents[0].id }))
-    }
+    if (!form.agent_id && agents?.length) setForm((f) => ({ ...f, agent_id: agents[0].id }))
   }, [agents, form.agent_id])
 
-  const set = (key) => (e) => {
-    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value
-    setForm((f) => ({ ...f, [key]: value }))
-  }
+  const set = (key) => (e) =>
+    setForm((f) => ({
+      ...f,
+      [key]: e.target.type === 'checkbox' ? e.target.checked : e.target.value,
+    }))
 
   const toggle = (list, setList) => (value) =>
     setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value])
@@ -111,219 +97,184 @@ export default function Policies() {
     }
   }
 
+  if (loading && !policies) return <Loading label="Reading authority" />
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight text-zinc-100">Authorizations</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Draw the boundary. Everything outside it is refused, whatever the agent decides.
+    <div className="v-page space-y-12">
+      <header>
+        <h1 className="text-title font-semibold tracking-tight text-fg">Authority</h1>
+        <p className="mt-2 max-w-lg text-small text-fg-muted">
+          Define exactly what an agent may do. Everything outside the boundary is refused,
+          explained and recorded.
         </p>
-      </div>
+      </header>
 
       {newToken && (
         <Alert kind="success">
-          <div className="font-medium">Agent created. This token is shown once.</div>
-          <code className="mt-1.5 block break-all font-mono text-[11px] text-emerald-300">
+          <div className="font-medium">Agent registered. This token is shown once.</div>
+          <code className="mt-2 block break-all font-mono text-label tracking-normal normal-case">
             {newToken}
           </code>
-          <div className="mt-1.5 text-emerald-200/70">
-            Saved to this browser and ready to use in the Agent Console.
-          </div>
         </Alert>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
-        <Card title="New authorization" subtitle="Amounts in rupees">
-          <form onSubmit={submit} className="space-y-4">
-            {/* An agent's token is shown only at creation, so this button has
-                to stay reachable once agents exist -- otherwise the only way
-                to obtain a token is to re-run the seed script. */}
-            <Field label="Agent" hint="Registering an agent mints its token, shown once.">
-              {agents?.length ? (
-                <div className="flex gap-2">
-                  <select
-                    value={form.agent_id}
-                    onChange={set('agent_id')}
-                    className="min-w-0 flex-1 rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm text-zinc-100 focus:border-brand-500 focus:outline-none"
-                  >
-                    {agents.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name} ({a.status.toLowerCase()})
-                      </option>
-                    ))}
-                  </select>
-                  <Button type="button" onClick={createAgent} title="Register another agent">
-                    + Agent
-                  </Button>
-                </div>
-              ) : (
-                <Button type="button" variant="primary" onClick={createAgent} className="w-full">
-                  Register an agent
+      <div className="grid gap-14 lg:grid-cols-[minmax(0,380px)_1fr]">
+        {/* Composer */}
+        <form onSubmit={submit} className="space-y-10">
+          <Section title="Agent">
+            {agents?.length ? (
+              <div className="flex gap-2">
+                <select value={form.agent_id}
+                  onChange={set('agent_id')}
+                  className="min-w-0 flex-1 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-body text-fg transition-colors focus:border-brand-500 focus:outline-none"
+                >
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({a.status.toLowerCase()})
+                    </option>
+                  ))}
+                </select>
+                <Button type="button" onClick={createAgent} title="Register another agent">
+                  + Agent
                 </Button>
-              )}
-            </Field>
+              </div>
+            ) : (
+              <Button type="button" variant="primary" onClick={createAgent} className="w-full">
+                Register an agent
+              </Button>
+            )}
+            <p className="mt-2 text-label tracking-normal normal-case text-fg-faint">
+              Registering mints a bearer token, shown once.
+            </p>
+          </Section>
 
-            <Field label="Name">
-              <Input value={form.name} onChange={set('name')} />
-            </Field>
+          <Rule />
 
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Max per purchase" hint="Ceiling on any one buy">
-                <Input
-                  type="number"
-                  min="1"
-                  value={form.max_per_transaction}
-                  onChange={set('max_per_transaction')}
+          <Section title="Spending">
+            <div className="space-y-6">
+              <Amount label="Per purchase" value={form.max_per_transaction}
+                onChange={set('max_per_transaction')} hint="Ceiling on any single buy."
+              />
+              <Amount label="Total budget" value={form.total_budget}
+                onChange={set('total_budget')} hint="Ceiling on everything combined."
+              />
+            </div>
+          </Section>
+
+          <Rule />
+
+          <Section title="Auto-approval">
+            <Amount label="Approve automatically up to" value={form.approval_threshold}
+              onChange={set('approval_threshold')} hint="Above this, Velora holds the purchase and asks you."
+            />
+          </Section>
+
+          <Rule />
+
+          <Section title="Scope">
+            <div className="space-y-6">
+              <Field label="Categories">
+                <Chips options={CATEGORIES} selected={categories}
+                  onToggle={toggle(categories, setCategories)}
                 />
               </Field>
-              <Field label="Total budget" hint="Ceiling on all buys">
-                <Input
-                  type="number"
-                  min="1"
-                  value={form.total_budget}
-                  onChange={set('total_budget')}
+              <Field label="Merchants">
+                <Chips options={MERCHANTS} selected={merchants}
+                  onToggle={toggle(merchants, setMerchants)}
                 />
               </Field>
             </div>
+          </Section>
 
-            <Field
-              label="Auto-approve at or below"
-              hint="Above this, Velora asks you before paying"
-            >
-              <Input
-                type="number"
-                min="0"
-                value={form.approval_threshold}
-                onChange={set('approval_threshold')}
-              />
-            </Field>
+          <Rule />
 
-            <div className="grid grid-cols-2 gap-3">
+          <Section title="Duration">
+            <div className="grid grid-cols-2 gap-4">
               <Field label="Max transactions">
-                <Input
-                  type="number"
-                  min="1"
-                  value={form.max_transactions}
+                <Input type="number" min="1" value={form.max_transactions}
                   onChange={set('max_transactions')}
                 />
               </Field>
               <Field label="Expires in (min)">
-                <Input
-                  type="number"
-                  min="1"
-                  value={form.expires_in_minutes}
+                <Input type="number" min="1" value={form.expires_in_minutes}
                   onChange={set('expires_in_minutes')}
                 />
               </Field>
             </div>
-
-            <Field label="Allowed categories">
-              <Chips
-                options={CATEGORIES}
-                selected={categories}
-                onToggle={toggle(categories, setCategories)}
-              />
-            </Field>
-
-            <Field label="Allowed merchants">
-              <Chips
-                options={MERCHANTS}
-                selected={merchants}
-                onToggle={toggle(merchants, setMerchants)}
-              />
-            </Field>
-
-            <label className="flex cursor-pointer items-center gap-2.5">
-              <input
-                type="checkbox"
-                checked={form.one_time_use}
+            <label className="mt-4 flex cursor-pointer items-center gap-2.5">
+              <input type="checkbox" checked={form.one_time_use}
                 onChange={set('one_time_use')}
-                className="h-3.5 w-3.5 rounded border-ink-600 bg-ink-850 accent-brand-500"
+                className="h-3.5 w-3.5 rounded border-ink-600 bg-ink-900 accent-[color:var(--color-brand-500)]"
               />
-              <span className="text-xs text-zinc-400">Single use only</span>
+              <span className="text-small text-fg-muted">Single use only</span>
             </label>
+          </Section>
 
-            {error && <Alert>{error}</Alert>}
+          <Field label="Name">
+            <Input value={form.name} onChange={set('name')} />
+          </Field>
 
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={busy || !form.agent_id}
-              className="w-full"
-            >
-              {busy ? 'Creating…' : 'Create authorization'}
-            </Button>
-          </form>
-        </Card>
+          {error && <Alert>{error}</Alert>}
 
-        <Card title="Issued authorizations" subtitle="Newest first">
-          {loading && !policies ? (
-            <Spinner />
-          ) : !policies?.length ? (
-            <Empty icon="○" title="No authorizations yet" hint="Create one to give an agent bounded authority." />
+          <Button type="submit" variant="primary" disabled={busy || !form.agent_id}
+            className="w-full"
+          >
+            {busy ? 'Granting…' : 'Grant authority'}
+          </Button>
+        </form>
+
+        {/* Issued */}
+        <Section title="Issued authority" description="Newest first">
+          {!policies?.length ? (
+            <Empty title="Nothing granted yet" hint="Agents hold nothing until you decide." />
           ) : (
-            <ul className="space-y-3">
+            <ul className="divide-y divide-ink-900">
               {policies.map((view) => {
                 const p = view.policy
+                const live = p.status === 'ACTIVE'
                 return (
-                  <li key={p.id} className="rounded-lg border border-ink-800 bg-ink-850/50 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
+                  <li key={p.id} className="py-6 first:pt-0">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-zinc-200">{p.name}</span>
-                          <Badge className={STATUS_STYLE[p.status]}>{p.status}</Badge>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <h3 className="text-heading font-medium text-fg">{p.name}</h3>
+                          <Status state={
+                              live
+                                ? 'ok'
+                                : p.status === 'REVOKED'
+                                  ? 'danger'
+                                  : 'muted'
+                            }
+                          >
+                            {p.status.toLowerCase()}
+                          </Status>
                         </div>
-                        <Mono className="mt-0.5 block">{p.id}</Mono>
+                        <Mono className="mt-1.5 block">{p.id}</Mono>
                       </div>
-                      {p.status === 'ACTIVE' && (
-                        <Button
-                          size="sm"
-                          variant="danger"
+                      {live && (
+                        <button
                           onClick={() => api.revokePolicy(p.id).then(reload)}
+                          className="text-label tracking-normal normal-case text-fg-faint transition-colors hover:text-[color:var(--color-danger)]"
                         >
                           Revoke
-                        </Button>
+                        </button>
                       )}
                     </div>
 
-                    <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs sm:grid-cols-4">
-                      <div>
-                        <dt className="text-zinc-600">Per purchase</dt>
-                        <dd className="tnum text-zinc-300">{inr(p.max_per_transaction_paise)}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-zinc-600">Budget left</dt>
-                        <dd className="tnum text-zinc-300">{view.remaining_budget_display}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-zinc-600">Auto-approve</dt>
-                        <dd className="tnum text-zinc-300">≤ {inr(p.approval_threshold_paise)}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-zinc-600">Txns left</dt>
-                        <dd className="tnum text-zinc-300">
-                          {view.transactions_remaining} / {p.max_transactions}
-                        </dd>
-                      </div>
+                    <dl className="mt-4 grid grid-cols-2 gap-x-8 gap-y-2.5 sm:grid-cols-4">
+                      <Spec label="Per purchase" value={inr(p.max_per_transaction_paise)} />
+                      <Spec label="Remaining" value={view.remaining_budget_display} />
+                      <Spec label="Auto-approve" value={`≤ ${inr(p.approval_threshold_paise)}`} />
+                      <Spec label="Transactions" value={`${view.transactions_remaining} / ${p.max_transactions}`}
+                      />
                     </dl>
 
-                    <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                      {p.allowed_categories.map((c) => (
-                        <span key={c} className="rounded bg-ink-800 px-1.5 py-0.5 text-[10px] text-zinc-500">
-                          {c}
-                        </span>
+                    <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                      {[...p.allowed_categories, ...p.allowed_merchants].map((tag) => (
+                        <Mono key={tag}>{tag}</Mono>
                       ))}
-                      {p.allowed_merchants.map((m) => (
-                        <span key={m} className="rounded bg-ink-800 px-1.5 py-0.5 text-[10px] text-zinc-500">
-                          {m}
-                        </span>
-                      ))}
-                      {p.one_time_use && (
-                        <span className="rounded bg-ink-800 px-1.5 py-0.5 text-[10px] text-zinc-500">
-                          single use
-                        </span>
-                      )}
-                      <span className="ml-auto text-[10px] text-zinc-600">
+                      {p.one_time_use && <Mono>single use</Mono>}
+                      <span className="ml-auto text-label tracking-normal normal-case text-fg-faint">
                         expires {dateTimeOf(p.expires_at)}
                       </span>
                     </div>
@@ -332,8 +283,56 @@ export default function Policies() {
               })}
             </ul>
           )}
-        </Card>
+        </Section>
       </div>
+    </div>
+  )
+}
+
+/** Amount inputs are large: they are the most consequential values here. */
+function Amount({ label, value, onChange, hint }) {
+  return (
+    <div>
+      <span className="eyebrow mb-2 block">{label}</span>
+      <div className="flex items-baseline gap-2 border-b border-ink-700 pb-2 transition-colors focus-within:border-brand-500">
+        <span className="text-title font-medium text-fg-subtle">₹</span>
+        <input type="number" min="0" value={value}
+          onChange={onChange}
+          className="tnum w-full bg-transparent text-title font-semibold text-fg focus:outline-none"
+        />
+      </div>
+      {hint && <p className="mt-2 text-label tracking-normal normal-case text-fg-faint">{hint}</p>}
+    </div>
+  )
+}
+
+function Chips({ options, selected, onToggle }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((option) => {
+        const on = selected.includes(option)
+        return (
+          <button key={option} type="button"
+            onClick={() => onToggle(option)}
+            className={`rounded-lg border px-2.5 py-1 text-small transition-all duration-[var(--dur-fast)] ${
+              on
+                ? 'border-brand-500/50 bg-brand-500/12 text-brand-300'
+                : 'border-ink-700 bg-ink-900 text-fg-subtle hover:border-ink-600 hover:text-fg-muted'
+            }`}
+          >
+            {option}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function Spec({ label, value }) {
+  return (
+    <div>
+      <dt className="eyebrow">{label}</dt>
+      <dd className="tnum mt-1 text-small text-fg-muted">{value}</dd>
     </div>
   )
 }

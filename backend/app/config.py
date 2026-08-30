@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     #: Shared secret for the human-facing API (approve, reject, pay, policies).
     #: Unset means the operator surface is open, which is only acceptable when
     #: the server is bound to 127.0.0.1 on a demo machine.
+    #: Signing key for user/merchant session tokens. Unset means a random
+    #: per-process key: safe, but everyone is logged out on restart.
+    session_secret: str = ""
+
     operator_token: str = ""
 
     #: Allow X-User-Id to select an arbitrary user. Local multi-user testing

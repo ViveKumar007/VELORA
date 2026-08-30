@@ -8,11 +8,16 @@ from app.models import TransactionRequest
 from app.schemas.api import (
     AuditEntryOut,
     AuditTrailOut,
+    PaymentConfirmIn,
     PaymentCreateIn,
     TransactionView,
 )
 from app.services import audit, events
-from app.services.payments_flow import PaymentNotAllowed, create_payment
+from app.services.payments_flow import (
+    PaymentNotAllowed,
+    confirm_client_payment,
+    create_payment,
+)
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
 
@@ -93,5 +98,39 @@ def create_transaction_payment(
     events.publish(
         "transaction.payment",
         {"transaction_id": txn.id, "state": txn.state, "order_id": txn.payment_order_id},
+    )
+    return TransactionView.build(txn)
+
+
+@router.post("/{transaction_id}/payment/confirm", response_model=TransactionView)
+def confirm_transaction_payment(
+    transaction_id: str,
+    payload: PaymentConfirmIn,
+    db: DbSession,
+    user: CurrentUser,
+):
+    """Settle a transaction from a Razorpay Checkout result.
+
+    The browser reports the outcome, but the browser is not believed: the
+    signature is verified against the API secret before anything settles. A
+    forged confirmation is refused with 409 and recorded in the audit trail.
+    """
+    txn = db.get(TransactionRequest, transaction_id)
+    if txn is None or txn.user_id != user.id:
+        raise HTTPException(status_code=404, detail="No such transaction.")
+
+    try:
+        txn = confirm_client_payment(
+            db,
+            transaction_id,
+            payment_id=payload.razorpay_payment_id,
+            signature=payload.razorpay_signature,
+        )
+    except PaymentNotAllowed as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    events.publish(
+        "transaction.payment",
+        {"transaction_id": txn.id, "state": txn.state, "payment_id": txn.payment_id},
     )
     return TransactionView.build(txn)

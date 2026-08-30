@@ -17,6 +17,31 @@ class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# --- Auth ----------------------------------------------------------------
+
+
+class LoginIn(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+    password: str = Field(min_length=1, max_length=200)
+
+
+class UserOut(ORMModel):
+    id: str
+    name: str
+    email: str
+    created_at: datetime
+
+
+class UserSession(BaseModel):
+    token: str
+    user: "UserOut"
+
+
+class MerchantSession(BaseModel):
+    token: str
+    merchant: "MerchantSelf"
+
+
 # --- Users & agents ------------------------------------------------------
 
 
@@ -56,6 +81,60 @@ class ProductOut(ORMModel):
     @property
     def price_display(self) -> str:
         return format_inr(self.price_paise)
+
+
+# --- Merchants -----------------------------------------------------------
+
+
+class MerchantOut(ORMModel):
+    id: str
+    slug: str
+    name: str
+    description: str
+    categories: list[str]
+    agent_ready: bool
+    status: str
+
+
+class MerchantSelf(MerchantOut):
+    """A merchant's view of themselves.
+
+    Separate from MerchantOut because that one is public -- it appears in the
+    agent catalog and the public profile, and a seller's contact email is not
+    something to publish to every anonymous caller.
+    """
+
+    email: str | None = None
+
+
+class MerchantStats(BaseModel):
+    """A merchant's view: what agent traffic did for their revenue."""
+
+    merchant: MerchantSelf
+    products: int
+    paid: int
+    revenue_paise: int
+    revenue_display: str
+    blocked: int
+    recovery_offered: int = Field(
+        description="Blocked purchases where an in-policy alternative was offered."
+    )
+
+
+class AgentCatalog(BaseModel):
+    """A storefront in a form an autonomous buyer can consume.
+
+    Includes the purchase protocol on purpose: an agent should not have to
+    reverse-engineer how to transact, and should know before it starts that
+    purchases are gated and may be refused.
+    """
+
+    version: str
+    currency: str
+    amount_unit: str
+    merchants: list[MerchantOut]
+    items: list[dict[str, Any]]
+    purchase_protocol: dict[str, Any]
 
 
 # --- Policies ------------------------------------------------------------
@@ -188,6 +267,7 @@ class TransactionOut(ORMModel):
     explanation: str | None
     checks: list[CheckOut]
     agent_rationale: str | None
+    recovery: dict[str, Any] | None = None
     payment_order_id: str | None
     payment_id: str | None
     payment_error: str | None
@@ -286,6 +366,31 @@ class PaymentCreateIn(BaseModel):
 class SimulatePaymentIn(BaseModel):
     transaction_id: str
     succeed: bool = True
+
+
+class PaymentConfirmIn(BaseModel):
+    """The result Razorpay Checkout hands back to the browser.
+
+    Untrusted until the signature verifies server-side.
+    """
+
+    razorpay_payment_id: str = Field(min_length=4, max_length=120)
+    razorpay_signature: str = Field(min_length=16, max_length=256)
+
+
+class PublicConfig(BaseModel):
+    """Non-secret settings the frontend needs at runtime.
+
+    razorpay_key_id is the publishable half of the key pair and is designed to
+    be visible in the browser. The key SECRET never leaves the server.
+    """
+
+    payment_provider: str
+    razorpay_key_id: str = ""
+    payment_methods: dict[str, bool] | None = Field(
+        default=None,
+        description="Methods the account can accept. None means 'show everything'.",
+    )
 
 
 # --- Dashboard -----------------------------------------------------------

@@ -18,14 +18,19 @@ pytestmark = requires_db
 
 @pytest.fixture
 def client(db, world, monkeypatch):
-    """A TestClient wired to the test database and a seeded world."""
+    """A TestClient wired to the test database, signed in as the buyer.
+
+    Authenticated by default because that is the ordinary case. Tests that
+    need to probe the unauthenticated path override the Authorization header
+    explicitly, so the intent is visible at the call site.
+    """
     from app.api.deps import get_db
 
     def override_get_db():
         yield db
 
     app.dependency_overrides[get_db] = override_get_db
-    yield TestClient(app)
+    yield TestClient(app, headers=world["auth"])
     app.dependency_overrides.clear()
 
 
@@ -134,6 +139,7 @@ def test_agent_token_is_required(client, world):
     response = client.post(
         "/api/agent/request",
         json={"product_id": world["products"]["lite"].id, "idempotency_key": "sec_noauth_1"},
+        headers={"Authorization": ""},   # explicitly strip the buyer session
     )
     assert response.status_code == 401
 
@@ -222,3 +228,119 @@ def test_sql_injection_in_filters_is_parameterised(client, world):
 
     # The table is still there.
     assert client.get("/api/transactions").status_code == 200
+
+
+# --- Client-side payment confirmation ------------------------------------
+
+
+def _approved_order(client, world, key):
+    """Drive a transaction to PAYMENT_CREATED and return (txn_id, order_id)."""
+    response = client.post(
+        "/api/agent/request",
+        json={"product_id": world["products"]["lite"].id, "idempotency_key": key},
+        headers={"Authorization": f"Bearer {world['token']}"},
+    )
+    txn_id = response.json()["transaction"]["id"]
+    paid = client.post(f"/api/transactions/{txn_id}/payment", json={"force_failure": False})
+    return txn_id, paid.json()["transaction"]["payment_order_id"]
+
+
+def test_forged_payment_confirmation_is_refused(client, world, db):
+    """The browser says 'I paid'. Without a valid signature that means nothing."""
+    from app.services import audit
+
+    txn_id, _ = _approved_order(client, world, "confirm_forge_1")
+
+    response = client.post(
+        f"/api/transactions/{txn_id}/payment/confirm",
+        json={
+            "razorpay_payment_id": "pay_totally_made_up",
+            "razorpay_signature": "0" * 64,
+        },
+    )
+    assert response.status_code == 409
+    assert "signature" in response.json()["detail"].lower()
+
+    current = client.get(f"/api/transactions/{txn_id}").json()["transaction"]
+    assert current["state"] == "PAYMENT_CREATED", "a forged confirmation must not settle"
+
+    # The rejection is recorded, not silently dropped.
+    trail = audit.trail(db, txn_id)
+    assert any("signature did not verify" in e.explanation for e in trail)
+
+
+def test_valid_payment_confirmation_settles(client, world, db):
+    from app.services import budget
+    from app.services.payments.stub import StubPaymentProvider
+    from app.utils.money import rupees_to_paise
+
+    txn_id, order_id = _approved_order(client, world, "confirm_valid_1")
+    payment_id = "pay_stub_valid_0001"
+
+    response = client.post(
+        f"/api/transactions/{txn_id}/payment/confirm",
+        json={
+            "razorpay_payment_id": payment_id,
+            "razorpay_signature": StubPaymentProvider.sign_payment(order_id, payment_id),
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["transaction"]["state"] == "PAYMENT_SUCCESS"
+    assert response.json()["transaction"]["payment_id"] == payment_id
+
+    # Settled through the same accounting path as a webhook.
+    policy = budget.lock_policy(db, world["policy"].id)
+    assert policy.amount_settled_paise == rupees_to_paise(1299)
+    assert policy.amount_reserved_paise == 0
+
+
+def test_confirmation_is_idempotent(client, world, db):
+    """Double-submitting the confirm call must not settle twice."""
+    from app.services import budget
+    from app.services.payments.stub import StubPaymentProvider
+    from app.utils.money import rupees_to_paise
+
+    txn_id, order_id = _approved_order(client, world, "confirm_twice_1")
+    payment_id = "pay_stub_twice_0001"
+    body = {
+        "razorpay_payment_id": payment_id,
+        "razorpay_signature": StubPaymentProvider.sign_payment(order_id, payment_id),
+    }
+
+    first = client.post(f"/api/transactions/{txn_id}/payment/confirm", json=body)
+    second = client.post(f"/api/transactions/{txn_id}/payment/confirm", json=body)
+
+    assert first.json()["transaction"]["state"] == "PAYMENT_SUCCESS"
+    assert second.json()["transaction"]["state"] == "PAYMENT_SUCCESS"
+
+    policy = budget.lock_policy(db, world["policy"].id)
+    assert policy.amount_settled_paise == rupees_to_paise(1299), "settled twice"
+
+
+def test_confirmation_cannot_settle_an_unpaid_transaction(client, world):
+    """A blocked transaction has no order, so there is nothing to confirm."""
+    response = client.post(
+        "/api/agent/request",
+        json={"product_id": world["products"]["premium"].id, "idempotency_key": "confirm_blk_1"},
+        headers={"Authorization": f"Bearer {world['token']}"},
+    )
+    txn_id = response.json()["transaction"]["id"]
+
+    refused = client.post(
+        f"/api/transactions/{txn_id}/payment/confirm",
+        json={"razorpay_payment_id": "pay_x", "razorpay_signature": "0" * 64},
+    )
+    assert refused.status_code == 409
+    assert "no payment order" in refused.json()["detail"].lower()
+
+
+def test_config_endpoint_never_leaks_the_key_secret(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "razorpay_key_id", "rzp_test_public123")
+    monkeypatch.setattr(settings, "razorpay_key_secret", "SUPERSECRETVALUE")
+
+    body = client.get("/api/config").json()
+    assert body["razorpay_key_id"] == "rzp_test_public123"
+    assert "SUPERSECRETVALUE" not in str(body)
+    assert "secret" not in str(body).lower()

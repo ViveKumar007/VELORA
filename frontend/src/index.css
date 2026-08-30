@@ -1,18 +1,85 @@
 @import 'tailwindcss';
 
-@theme {
-  --color-ink-950: #08090c;
-  --color-ink-900: #0d0f14;
-  --color-ink-850: #12151c;
-  --color-ink-800: #191d26;
-  --color-ink-700: #232834;
-  --color-ink-600: #333a49;
+/* ==========================================================================
+   Velora design tokens
 
-  --color-brand-400: #8b8cf5;
-  --color-brand-500: #6d6ef0;
-  --color-brand-600: #5250d8;
+   One scale for type, one for space, one for motion. Components pick from
+   these and never invent their own values — that is what stops the interface
+   drifting into a collection of individually-reasonable decisions that do not
+   agree with each other.
+   ========================================================================== */
+
+@theme {
+  /* --- Surface -----------------------------------------------------------
+     Deep graphite, never pure black: #000 kills the sense of depth and makes
+     every border look like a scratch. Steps are close together so elevation
+     reads as light, not as a stack of grey boxes. */
+  --color-ink-1000: #0a0b0e;
+  --color-ink-950: #0d0e12;
+  --color-ink-900: #111318;
+  --color-ink-850: #15171d;
+  --color-ink-800: #1b1e26;
+  --color-ink-700: #252932;
+  --color-ink-600: #343945;
+  --color-ink-500: #4a5060;
+
+  /* --- Text --------------------------------------------------------------
+     Four steps only. Anything needing a fifth is a hierarchy problem, not a
+     colour problem. */
+  --color-fg: #e9eaee;
+  --color-fg-muted: #9ea4b0;
+  --color-fg-subtle: #6b7280;
+  --color-fg-faint: #4b5160;
+
+  /* --- Accent ------------------------------------------------------------
+     From the mark. Reserved for live processes, selection, authorization and
+     connection. If it appears on a static decorative element, that is a bug. */
+  --color-brand-300: #a9a4ff;
+  --color-brand-400: #8b84f7;
+  --color-brand-500: #6d5ef0;
+  --color-brand-600: #5847d4;
+
+  /* --- State -------------------------------------------------------------
+     Only ever used to communicate what the system decided. */
+  --color-ok: #4ade80;
+  --color-ok-dim: #22c55e;
+  --color-warn: #fbbf24;
+  --color-danger: #fb7185;
+
+  /* --- Type scale --------------------------------------------------------
+     Deliberately few sizes. Hierarchy comes from size *and* colour together,
+     so a section can be organised without drawing a box around it. */
+  --text-display: 3.25rem;
+  --text-display--line-height: 1.04;
+  --text-display--letter-spacing: -0.035em;
+
+  --text-title: 1.875rem;
+  --text-title--line-height: 1.15;
+  --text-title--letter-spacing: -0.025em;
+
+  --text-heading: 1.0625rem;
+  --text-heading--line-height: 1.35;
+  --text-heading--letter-spacing: -0.011em;
+
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.6;
+
+  --text-small: 0.8125rem;
+  --text-small--line-height: 1.5;
+
+  --text-label: 0.6875rem;
+  --text-label--line-height: 1.4;
+  --text-label--letter-spacing: 0.08em;
 
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* --- Motion ------------------------------------------------------------
+     Three durations. Everything eases out — things arrive and settle, they
+     never bounce. */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 140ms;
+  --dur-base: 240ms;
+  --dur-slow: 420ms;
 }
 
 html,
@@ -22,19 +89,30 @@ body,
 }
 
 body {
-  background: var(--color-ink-950);
-  color: #e6e8ee;
+  background: var(--color-ink-1000);
+  color: var(--color-fg);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* Tabular figures keep money columns from jittering as values change. */
+/* Money and counters must not reflow as digits change. */
 .tnum {
   font-variant-numeric: tabular-nums;
 }
 
+/* The one label treatment, used everywhere a section is named without a box. */
+.eyebrow {
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  letter-spacing: var(--text-label--letter-spacing);
+  text-transform: uppercase;
+  color: var(--color-fg-subtle);
+  font-weight: 500;
+}
+
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -47,31 +125,153 @@ body {
   background: var(--color-ink-600);
 }
 
-@keyframes pulse-ring {
-  0% {
-    box-shadow: 0 0 0 0 rgb(109 110 240 / 0.4);
-  }
-  70% {
-    box-shadow: 0 0 0 6px rgb(109 110 240 / 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgb(109 110 240 / 0);
-  }
-}
-.live-dot {
-  animation: pulse-ring 2s infinite;
+::selection {
+  background: rgb(109 94 240 / 0.28);
 }
 
-@keyframes slide-in {
+:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ==========================================================================
+   Motion
+
+   Every animation below exists to show state changing or system activity.
+   Nothing here is decorative; if a rule stops explaining something, delete it.
+   ========================================================================== */
+
+@keyframes v-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.v-enter {
+  animation: v-enter var(--dur-base) var(--ease-out-soft) both;
+}
+
+/* Route changes: a short settle, not a slide show. */
+@keyframes v-page {
   from {
     opacity: 0;
     transform: translateY(4px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
-.animate-in {
-  animation: slide-in 0.22s ease-out both;
+.v-page {
+  animation: v-page var(--dur-slow) var(--ease-out-soft) both;
+}
+
+/* A check resolving in an authorization sequence. */
+@keyframes v-resolve {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.v-resolve {
+  animation: v-resolve var(--dur-base) var(--ease-out-soft) both;
+}
+
+/* Something is live right now. */
+@keyframes v-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(109 94 240 / 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgb(109 94 240 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(109 94 240 / 0);
+  }
+}
+.v-live {
+  animation: v-pulse 2.4s ease-out infinite;
+}
+
+/* A signal travelling along a connection between nodes. */
+@keyframes v-signal {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+.v-flow {
+  stroke-dasharray: 3 7;
+  animation: v-signal 1.2s linear infinite;
+}
+
+/* Loading, in the language of the mark: two loops, one lit node. */
+@keyframes v-orbit {
+  0% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.25;
+  }
+}
+.v-orbit {
+  animation: v-orbit 1.5s ease-in-out infinite;
+}
+
+@keyframes v-sheen {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.v-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-ink-850) 25%,
+    var(--color-ink-800) 37%,
+    var(--color-ink-850) 63%
+  );
+  background-size: 200% 100%;
+  animation: v-sheen 1.5s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* Scroll storytelling: reveal on entry, once, subtly. */
+.v-reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity var(--dur-slow) var(--ease-out-soft),
+    transform var(--dur-slow) var(--ease-out-soft);
+}
+.v-reveal[data-shown='true'] {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .v-reveal {
+    opacity: 1;
+    transform: none;
+  }
 }

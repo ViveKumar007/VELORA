@@ -56,6 +56,30 @@ class StubPaymentProvider:
         ).hexdigest()
         return hmac.compare_digest(expected, signature or "")
 
+    def verify_payment_signature(
+        self, order_id: str, payment_id: str, signature: str
+    ) -> bool:
+        """Same scheme as the real provider, keyed with the stub secret, so
+        the client-confirm path can be exercised without Razorpay keys."""
+        if not order_id or not payment_id or not signature:
+            return False
+        expected = hmac.new(
+            STUB_WEBHOOK_SECRET.encode(),
+            f"{order_id}|{payment_id}".encode(),
+            hashlib.sha256,
+        ).hexdigest()
+        return hmac.compare_digest(expected, signature)
+
+    @staticmethod
+    def sign_payment(order_id: str, payment_id: str) -> str:
+        """Produce a valid client signature, so tests and the local demo can
+        drive the same code path Razorpay Checkout would."""
+        return hmac.new(
+            STUB_WEBHOOK_SECRET.encode(),
+            f"{order_id}|{payment_id}".encode(),
+            hashlib.sha256,
+        ).hexdigest()
+
     @staticmethod
     def sign(payload: bytes) -> str:
         """Helper so the demo can produce a validly signed webhook."""

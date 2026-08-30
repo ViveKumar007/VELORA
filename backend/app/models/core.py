@@ -33,6 +33,7 @@ class User(Base, TimestampMixin):
     id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: new_id("usr"))
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False, default="")
 
     agents: Mapped[list["Agent"]] = relationship(back_populates="user")
 
@@ -57,6 +58,42 @@ class Agent(Base, TimestampMixin):
     user: Mapped[User] = relationship(back_populates="agents")
 
 
+class Merchant(Base, TimestampMixin):
+    """A seller that has made itself transactable by AI buyers.
+
+    Merchants want agent-driven revenue but cannot accept unbounded agent
+    spend. Publishing a catalog through Velora is what makes them safe to
+    transact with: every purchase an agent attempts is gated, explained and
+    audited before their payment page is ever reached.
+
+    `slug` is the canonical identifier the gate matches on. Display names
+    drift ("Blinkit" / "blinkit " / "BLINKIT"); the slug does not.
+    """
+
+    __tablename__ = "merchants"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: new_id("mch"))
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    slug: Mapped[str] = mapped_column(String(120), unique=True, nullable=False, index=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    categories: Mapped[list[str]] = mapped_column(JSONB, default=list)
+
+    #: Razorpay linked-account id, for routing settlement to this merchant.
+    razorpay_account_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    #: Merchants sign in to their own console. Separate credentials from
+    #: the buyer side entirely -- a merchant must never be able to read a
+    #: buyer's policies or approve their purchases.
+    email: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+
+    #: Whether this merchant publishes an agent-readable catalog.
+    agent_ready: Mapped[bool] = mapped_column(Boolean, default=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="ACTIVE")
+
+    products: Mapped[list["Product"]] = relationship(back_populates="merchant_ref")
+
+
 class Product(Base, TimestampMixin):
     """Velora's own catalog.
 
@@ -74,10 +111,20 @@ class Product(Base, TimestampMixin):
     price_paise: Mapped[int] = mapped_column(BigInteger, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="INR")
     category: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+
+    #: Denormalised merchant name. Kept as a plain string because the gate and
+    #: policy.allowed_merchants match on it directly, and that comparison must
+    #: not require a join at decision time.
     merchant: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    merchant_id: Mapped[str | None] = mapped_column(
+        ForeignKey("merchants.id"), nullable=True, index=True
+    )
+
     rating: Mapped[float] = mapped_column(default=0.0)
     attributes: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     in_stock: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    merchant_ref: Mapped["Merchant | None"] = relationship(back_populates="products")
 
 
 class AuthorizationPolicy(Base, TimestampMixin):
@@ -174,6 +221,15 @@ class TransactionRequest(Base, TimestampMixin):
 
     agent_rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
     budget_reserved: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    #: When the gate blocks a purchase on price or merchant scope, the best
+    #: in-policy alternative found at that moment. A guardrail that only ever
+    #: says no costs the merchant the sale; this turns a refusal into an offer
+    #: the buyer is actually allowed to accept.
+    #:
+    #: Snapshotted rather than a live FK: it records what was offered then, and
+    #: stays truthful even if the catalog changes afterwards.
+    recovery: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     payment_order_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
     payment_id: Mapped[str | None] = mapped_column(String(120), nullable=True)

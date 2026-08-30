@@ -29,22 +29,22 @@ function Candidate({ item, chosen }) {
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          <span className="truncate text-xs font-medium text-zinc-200">{item.name}</span>
+          <span className="truncate text-small font-medium text-fg">{item.name}</span>
           {chosen && (
             <Badge className="bg-brand-500/15 text-brand-400 ring-brand-500/30">chosen</Badge>
           )}
           {!item.within_budget && (
-            <Badge className="bg-zinc-500/10 text-zinc-400 ring-zinc-500/30">over budget</Badge>
+            <Badge className="bg-zinc-500/10 text-fg-muted ring-zinc-500/30">over budget</Badge>
           )}
         </div>
         {item.notes?.length > 0 && (
-          <p className="mt-0.5 truncate text-[11px] text-zinc-600">{item.notes.join(' · ')}</p>
+          <p className="mt-0.5 truncate text-label tracking-normal normal-case text-fg-faint">{item.notes.join(' · ')}</p>
         )}
       </div>
-      <span className="tnum shrink-0 text-xs text-zinc-400">{item.price_display}</span>
+      <span className="tnum shrink-0 text-small text-fg-muted">{item.price_display}</span>
       <div className="flex shrink-0 items-center gap-1.5">
         <ScoreBar value={item.score} />
-        <span className="tnum w-8 text-right text-[10px] text-zinc-600">
+        <span className="tnum w-8 text-right text-label tracking-normal normal-case text-fg-faint">
           {item.score.toFixed(2)}
         </span>
       </div>
@@ -92,8 +92,8 @@ export default function AgentConsole() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight text-zinc-100">Agent Console</h1>
-        <p className="mt-1 text-sm text-zinc-500">
+        <h1 className="text-title font-semibold tracking-tight text-fg">Agent Console</h1>
+        <p className="mt-1 text-small text-fg-subtle">
           The agent chooses what to buy. It cannot see your policy, and it cannot pay.
         </p>
       </div>
@@ -113,21 +113,17 @@ export default function AgentConsole() {
           <Card title="Shopping Agent" subtitle="Give it a goal in plain language">
             <div className="space-y-4">
               <Field label="Goal">
-                <textarea
-                  value={goal}
-                  onChange={(e) => setGoal(e.target.value)}
-                  rows={2}
-                  className="w-full resize-none rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none"
+                <textarea value={goal}
+                  onChange={(e) => setGoal(e.target.value)} rows={2}
+                  className="w-full resize-none rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-small text-fg placeholder:text-fg-faint focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none"
                 />
               </Field>
 
               <div className="flex flex-wrap gap-1.5">
                 {PRESETS.map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
+                  <button key={preset} type="button"
                     onClick={() => setGoal(preset)}
-                    className="rounded-lg border border-ink-700 bg-ink-850 px-2 py-1 text-[11px] text-zinc-500 transition hover:text-zinc-300"
+                    className="rounded-lg border border-ink-700 bg-ink-850 px-2 py-1 text-label tracking-normal normal-case text-fg-subtle transition hover:text-fg-muted"
                   >
                     {preset.length > 34 ? `${preset.slice(0, 34)}…` : preset}
                   </button>
@@ -135,10 +131,8 @@ export default function AgentConsole() {
               </div>
 
               <div className="flex gap-2">
-                <Button
-                  variant="primary"
-                  onClick={() => run(true)}
-                  disabled={busy || !token}
+                <Button variant="primary"
+                  onClick={() => run(true)} disabled={busy || !token}
                   className="flex-1"
                 >
                   {busy ? 'Working…' : 'Run agent'}
@@ -149,7 +143,7 @@ export default function AgentConsole() {
               </div>
 
               {stage && (
-                <div className="flex items-center gap-2 text-xs text-zinc-500">
+                <div className="flex items-center gap-2 text-small text-fg-subtle">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" />
                   {stage}
                 </div>
@@ -161,14 +155,12 @@ export default function AgentConsole() {
 
           <Card title="Agent credentials" subtitle="Proves which agent is acting">
             <Field label="Bearer token">
-              <Input
-                value={token}
-                onChange={(e) => saveToken(e.target.value)}
-                placeholder="vla_…"
-                className="font-mono text-xs"
+              <Input value={token}
+                onChange={(e) => saveToken(e.target.value)} placeholder="vla_…"
+                className="font-mono text-small"
               />
             </Field>
-            <p className="mt-2 text-[11px] leading-relaxed text-zinc-600">
+            <p className="mt-2 text-label tracking-normal normal-case leading-relaxed text-fg-faint">
               Velora resolves this token to an agent and evaluates that identity. An agent_id in
               the request body is only a claim — a mismatch is blocked.
             </p>
@@ -177,13 +169,13 @@ export default function AgentConsole() {
           <Card title="Catalog" subtitle="Velora owns this data">
             <ul className="space-y-1.5">
               {(products || []).map((p) => (
-                <li key={p.id} className="flex items-center gap-2 text-xs">
-                  <span className="tnum w-16 shrink-0 text-right text-zinc-400">
+                <li key={p.id} className="flex items-center gap-2 text-small">
+                  <span className="tnum w-16 shrink-0 text-right text-fg-muted">
                     {p.price_display}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-zinc-300">{p.name}</span>
-                  <span className="shrink-0 text-[10px] text-zinc-600">{p.category}</span>
-                  <span className="shrink-0 text-[10px] text-zinc-600">{p.merchant}</span>
+                  <span className="min-w-0 flex-1 truncate text-fg-muted">{p.name}</span>
+                  <span className="shrink-0 text-label tracking-normal normal-case text-fg-faint">{p.category}</span>
+                  <span className="shrink-0 text-label tracking-normal normal-case text-fg-faint">{p.merchant}</span>
                 </li>
               ))}
             </ul>
@@ -196,22 +188,22 @@ export default function AgentConsole() {
               <Card title="What the agent understood" subtitle="Parsed from the goal">
                 <div className="flex flex-wrap gap-1.5">
                   {rec.intent.max_budget_paise && (
-                    <Badge className="bg-ink-800 text-zinc-300 ring-ink-700">
+                    <Badge className="bg-ink-800 text-fg-muted ring-ink-700">
                       budget {inr(rec.intent.max_budget_paise)}
                     </Badge>
                   )}
                   {rec.intent.category && (
-                    <Badge className="bg-ink-800 text-zinc-300 ring-ink-700">
+                    <Badge className="bg-ink-800 text-fg-muted ring-ink-700">
                       {rec.intent.category}
                     </Badge>
                   )}
                   {rec.intent.preferences.map((p) => (
-                    <Badge key={p} className="bg-ink-800 text-zinc-300 ring-ink-700">
+                    <Badge key={p} className="bg-ink-800 text-fg-muted ring-ink-700">
                       {p.replace(/_/g, ' ')}
                     </Badge>
                   ))}
                   {rec.intent.product_query && (
-                    <Badge className="bg-ink-800 text-zinc-300 ring-ink-700">
+                    <Badge className="bg-ink-800 text-fg-muted ring-ink-700">
                       “{rec.intent.product_query}”
                     </Badge>
                   )}
@@ -219,14 +211,14 @@ export default function AgentConsole() {
 
                 {rec.chosen && (
                   <>
-                    <p className="mt-4 text-sm leading-relaxed text-zinc-300">{rec.rationale}</p>
+                    <p className="mt-4 text-small leading-relaxed text-fg-muted">{rec.rationale}</p>
                     <div className="mt-3 space-y-1.5">
                       <Candidate item={rec.chosen} chosen />
                       {rec.alternatives.map((alt) => (
                         <Candidate key={alt.product_id} item={alt} />
                       ))}
                     </div>
-                    <p className="mt-3 text-[11px] leading-relaxed text-zinc-600">
+                    <p className="mt-3 text-label tracking-normal normal-case leading-relaxed text-fg-faint">
                       Scoring never considers your policy. The agent is allowed to want something
                       it cannot have — catching that is Velora's job.
                     </p>
@@ -247,10 +239,7 @@ export default function AgentConsole() {
             </>
           ) : (
             <Card>
-              <Empty
-                icon="◇"
-                title="No run yet"
-                hint="Give the agent a goal and watch it choose — then watch Velora decide whether it may."
+              <Empty icon="◇" title="No run yet" hint="Give the agent a goal and watch it choose — then watch Velora decide whether it may."
               />
             </Card>
           )}

@@ -1,18 +1,82 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChecksList } from '../components/Decision'
-import { Alert, Badge, Button, Card, Empty, Mono, Spinner } from '../components/ui'
+import { FlowStep } from '../components/AuthorityFlow'
+import { Alert, Button, Empty, Loading, Mono, Rule, Status } from '../components/ui'
 import { useLiveResource, useTick } from '../hooks/useLive'
 import { api } from '../lib/api'
 import { countdown, inr } from '../lib/format'
 
-function ApprovalCard({ item, onDone }) {
+/**
+ * The decision.
+ *
+ * One purchase at a time, with everything else stripped away. The amount and
+ * the threshold it crossed are the two facts that matter, so they are the two
+ * largest things on screen; the checks that passed sit underneath as evidence
+ * rather than as competing content.
+ *
+ * No modal. A decision about money should be a place you are, not a thing
+ * that interrupts you.
+ */
+export default function Approvals() {
+  const { data, loading, reload } = useLiveResource(() => api.approvals())
+  useTick(1000)
+
+  if (loading && !data) return <Loading label="Checking for decisions" />
+
+  const total = (data || []).reduce(
+    (sum, item) => sum + item.transaction.requested_amount_paise,
+    0,
+  )
+
+  return (
+    <div className="v-page space-y-10">
+      <header className="flex flex-wrap items-end justify-between gap-6">
+        <div>
+          <h1 className="text-title font-semibold tracking-tight text-fg">Approvals</h1>
+          <p className="mt-2 max-w-lg text-small text-fg-muted">
+            Purchases inside your limits but above the threshold you set for automatic
+            approval.
+          </p>
+        </div>
+        {data?.length > 0 && (
+          <div className="text-right">
+            <div className="tnum text-title font-semibold text-[color:var(--color-warn)]">
+              {inr(total)}
+            </div>
+            <div className="text-label tracking-normal normal-case text-fg-faint">
+              held pending your decision
+            </div>
+          </div>
+        )}
+      </header>
+
+      <Rule />
+
+      {!data?.length ? (
+        <Empty title="Nothing needs your approval" hint="Purchases at or below your threshold clear on their own. Anything above it waits here."
+        />
+      ) : (
+        <div className="space-y-16">
+          {data.map((item) => (
+            <Decision key={item.id} item={item} onDone={reload} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Decision({ item, onDone }) {
   const [busy, setBusy] = useState(null)
   const [error, setError] = useState(null)
-  const [expanded, setExpanded] = useState(false)
+  const [showChecks, setShowChecks] = useState(false)
   const t = item.transaction
   const remaining = countdown(item.expires_at)
   const urgent = remaining && !remaining.includes('m')
+  const expired = remaining === 'expired'
+
+  const threshold = t.policy_snapshot?.approval_threshold_paise
+  const limit = t.policy_snapshot?.max_per_transaction_paise
 
   async function act(kind) {
     setBusy(kind)
@@ -29,129 +93,91 @@ function ApprovalCard({ item, onDone }) {
     }
   }
 
+  const checks = (t.checks || []).filter((c) => c.status !== 'SKIP')
+
   return (
-    <div className="animate-in rounded-xl border border-amber-500/25 bg-amber-500/[0.035]">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-800/70 px-5 py-4">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-baseline gap-2.5">
-            <h3 className="text-base font-semibold text-zinc-100">{t.product_name}</h3>
-            <span className="tnum text-base font-medium text-amber-200">
-              {item.amount_display}
-            </span>
+    <article className="v-enter">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <span className="eyebrow">Authority limit reached</span>
+        <Status state={urgent || expired ? 'danger' : 'muted'}>
+          {expired ? 'expired' : `expires in ${remaining}`}
+        </Status>
+      </div>
+
+      {/* The two numbers that matter */}
+      <div className="flex flex-wrap items-end gap-x-12 gap-y-6">
+        <div>
+          <div className="tnum text-display font-semibold tracking-tight text-fg">
+            {item.amount_display}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <Mono>{t.merchant}</Mono>
-            <Mono>·</Mono>
-            <Mono>{t.category}</Mono>
-            <Mono>·</Mono>
-            <Mono>{t.id}</Mono>
+          <div className="mt-1.5 text-small text-fg-muted">
+            {t.product_name} · {t.merchant}
           </div>
         </div>
-        <Badge
-          className={
-            urgent
-              ? 'bg-rose-500/10 text-rose-300 ring-rose-500/30'
-              : 'bg-ink-800 text-zinc-400 ring-ink-700'
-          }
-        >
-          {remaining === 'expired' ? 'expired' : `expires in ${remaining}`}
-        </Badge>
+        {threshold != null && (
+          <div className="pb-2">
+            <div className="tnum text-title font-medium text-fg-subtle">{inr(threshold)}</div>
+            <div className="mt-1 text-label tracking-normal normal-case text-fg-faint">
+              your auto-approval threshold
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="px-5 py-4">
-        <p className="text-sm leading-relaxed text-zinc-300">{item.prompt}</p>
+      <p className="mt-6 max-w-xl text-body leading-relaxed text-fg-muted">
+        This purchase is <span className="text-fg">within</span> your permitted scope
+        {limit != null && <> of {inr(limit)} per purchase</>}, but exceeds the amount you
+        allow Velora to approve on its own.
+      </p>
 
-        {t.agent_rationale && (
-          <p className="mt-3 border-l-2 border-ink-700 pl-3 text-xs italic leading-relaxed text-zinc-500">
-            Agent reasoning: {t.agent_rationale}
-          </p>
-        )}
+      {t.agent_rationale && (
+        <p className="mt-4 max-w-xl border-l border-ink-700 pl-4 text-small leading-relaxed text-fg-subtle italic">
+          {t.agent_rationale}
+        </p>
+      )}
 
+      {/* Evidence */}
+      <div className="mt-8">
         <button
-          onClick={() => setExpanded((v) => !v)}
-          className="mt-3 text-[11px] font-medium text-brand-400 hover:text-brand-500"
+          onClick={() => setShowChecks((v) => !v)}
+          className="eyebrow transition-colors hover:text-fg-muted"
         >
-          {expanded ? 'Hide' : 'Show'} the {t.checks?.length ?? 0} policy checks
+          {showChecks ? '− Hide' : '+ Show'} the {checks.length} checks that passed
         </button>
-
-        {expanded && (
-          <div className="mt-2 rounded-lg border border-ink-800 bg-ink-900/60 py-2">
-            <ChecksList checks={t.checks} dense />
-          </div>
-        )}
-
-        {error && (
-          <div className="mt-3">
-            <Alert>{error}</Alert>
-          </div>
+        {showChecks && (
+          <ol className="mt-5 max-w-md">
+            {checks.map((c, i) => (
+              <FlowStep key={c.name} index={i} label={c.name} value={c.status} status={c.status} last={i === checks.length - 1}
+              />
+            ))}
+          </ol>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-ink-800/70 px-5 py-3">
-        <Button
-          variant="approve"
-          onClick={() => act('approve')}
-          disabled={busy !== null || remaining === 'expired'}
+      {error && (
+        <div className="mt-6 max-w-md">
+          <Alert>{error}</Alert>
+        </div>
+      )}
+
+      <div className="mt-9 flex flex-wrap items-center gap-3">
+        <Button variant="approve"
+          onClick={() => act('approve')} disabled={busy !== null || expired}
+          className="px-6"
         >
           {busy === 'approve' ? 'Approving…' : `Approve ${item.amount_display}`}
         </Button>
         <Button variant="danger" onClick={() => act('reject')} disabled={busy !== null}>
           {busy === 'reject' ? 'Rejecting…' : 'Reject'}
         </Button>
-        <Link
-          to={`/audit/${t.id}`}
-          className="ml-auto text-[11px] font-medium text-brand-400 hover:text-brand-500"
+        <Link to={`/app/audit/${t.id}`}
+          className="ml-auto text-label tracking-normal normal-case text-brand-400 transition-colors hover:text-brand-300"
         >
           Audit trail →
         </Link>
       </div>
-    </div>
-  )
-}
 
-export default function Approvals() {
-  const { data, loading, reload } = useLiveResource(() => api.approvals())
-  useTick(1000)
-
-  const total = (data || []).reduce(
-    (sum, item) => sum + item.transaction.requested_amount_paise,
-    0,
-  )
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-zinc-100">Approval Centre</h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            Purchases inside the limit but above your auto-approval threshold.
-          </p>
-        </div>
-        {data?.length > 0 && (
-          <div className="text-right">
-            <div className="tnum text-lg font-semibold text-amber-200">{inr(total)}</div>
-            <div className="text-[11px] text-zinc-600">held pending your decision</div>
-          </div>
-        )}
-      </div>
-
-      {loading && !data ? (
-        <Spinner />
-      ) : !data?.length ? (
-        <Card>
-          <Empty
-            icon="✓"
-            title="Nothing needs your approval"
-            hint="Purchases at or below your auto-approval threshold clear without asking. Anything above it will appear here."
-          />
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {data.map((item) => (
-            <ApprovalCard key={item.id} item={item} onDone={reload} />
-          ))}
-        </div>
-      )}
-    </div>
+      <Mono className="mt-5 block">{t.id}</Mono>
+    </article>
   )
 }

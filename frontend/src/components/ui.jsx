@@ -1,42 +1,103 @@
-import { DECISION_STYLE, STATE_STYLE } from '../lib/format'
+import { useEffect, useRef, useState } from 'react'
+import { LogoMark } from './Logo'
 
-export function Card({ title, subtitle, right, children, className = '' }) {
+/* ==========================================================================
+   Primitives
+
+   The rule that shapes this file: a surface has to earn itself. Sections are
+   organised with type, space and a single hairline rule — a box is drawn only
+   around things that are genuinely objects (a transaction, an agent, a
+   decision), never around a statistic or a heading.
+   ========================================================================== */
+
+/** A named region. No border, no background — the label and spacing do the work. */
+export function Section({ title, description, action, children, className = '' }) {
   return (
-    <section
-      className={`rounded-xl border border-ink-800 bg-ink-900/60 backdrop-blur ${className}`}
-    >
-      {(title || right) && (
-        <header className="flex items-start justify-between gap-4 border-b border-ink-800 px-5 py-3.5">
+    <section className={className}>
+      {(title || action) && (
+        <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
-            {title && <h2 className="text-sm font-semibold text-zinc-100">{title}</h2>}
-            {subtitle && <p className="mt-0.5 text-xs text-zinc-500">{subtitle}</p>}
+            {title && <h2 className="eyebrow">{title}</h2>}
+            {description && (
+              <p className="mt-1.5 text-small text-fg-subtle">{description}</p>
+            )}
           </div>
-          {right}
+          {action}
         </header>
       )}
-      <div className="p-5">{children}</div>
+      {children}
     </section>
   )
 }
 
-export function Badge({ children, className = '' }) {
+/** For genuine objects only. Use sparingly. */
+export function Surface({ children, className = '', interactive = false, tone }) {
+  const tones = {
+    ok: 'border-[color:var(--color-ok)]/25 bg-[color:var(--color-ok)]/[0.04]',
+    warn: 'border-[color:var(--color-warn)]/25 bg-[color:var(--color-warn)]/[0.04]',
+    danger: 'border-[color:var(--color-danger)]/25 bg-[color:var(--color-danger)]/[0.04]',
+    brand: 'border-brand-500/25 bg-brand-500/[0.05]',
+  }
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${className}`}
+    <div
+      className={`rounded-xl border ${tone ? tones[tone] : 'border-ink-800 bg-ink-950'} ${
+        interactive
+          ? 'transition-colors duration-[var(--dur-base)] hover:border-ink-700 hover:bg-ink-900'
+          : ''
+      } ${className}`}
     >
       {children}
-    </span>
+    </div>
   )
 }
 
-export function StateBadge({ state }) {
-  return <Badge className={STATE_STYLE[state] || STATE_STYLE.CREATED}>{state?.replace(/_/g, ' ')}</Badge>
+/** A number that matters. No box — size and colour carry it. */
+export function Figure({ value, label, note, tone = 'default', animate = true }) {
+  const tones = {
+    default: 'text-fg',
+    ok: 'text-[color:var(--color-ok)]',
+    warn: 'text-[color:var(--color-warn)]',
+    danger: 'text-[color:var(--color-danger)]',
+    brand: 'text-brand-300',
+  }
+  return (
+    <div>
+      <div className={`tnum text-title font-semibold ${tones[tone]}`}>
+        {animate && typeof value === 'number' ? <CountUp value={value} /> : value}
+      </div>
+      <div className="mt-1 text-small text-fg-muted">{label}</div>
+      {note && <div className="mt-0.5 text-label text-fg-faint normal-case">{note}</div>}
+    </div>
+  )
 }
 
-export function DecisionBadge({ decision }) {
-  const style = DECISION_STYLE[decision]
-  if (!style) return null
-  return <Badge className={style.cls}>{style.label}</Badge>
+/**
+ * Financial values should move, not jump. Seeing 2,480 climb to 3,900 tells
+ * you money was spent; a swap tells you the page re-rendered.
+ */
+export function CountUp({ value, duration = 520 }) {
+  const [shown, setShown] = useState(value)
+  const from = useRef(value)
+  const raf = useRef(null)
+
+  useEffect(() => {
+    const start = performance.now()
+    const origin = from.current
+    const delta = value - origin
+    if (delta === 0) return
+
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / duration)
+      const eased = 1 - Math.pow(1 - t, 3)
+      setShown(Math.round(origin + delta * eased))
+      if (t < 1) raf.current = requestAnimationFrame(tick)
+      else from.current = value
+    }
+    raf.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf.current)
+  }, [value, duration])
+
+  return <>{shown.toLocaleString('en-IN')}</>
 }
 
 export function Button({
@@ -47,30 +108,33 @@ export function Button({
   ...props
 }) {
   const variants = {
-    default: 'bg-ink-800 hover:bg-ink-700 text-zinc-100 border-ink-700',
-    primary: 'bg-brand-600 hover:bg-brand-500 text-white border-brand-500',
-    approve: 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500',
-    danger: 'bg-rose-600/90 hover:bg-rose-500 text-white border-rose-500',
-    ghost: 'bg-transparent hover:bg-ink-800 text-zinc-300 border-transparent',
+    default:
+      'border-ink-700 bg-ink-850 text-fg hover:border-ink-600 hover:bg-ink-800',
+    primary:
+      'border-brand-500 bg-brand-500 text-white hover:bg-brand-400 hover:border-brand-400',
+    approve:
+      'border-[color:var(--color-ok-dim)] bg-[color:var(--color-ok-dim)] text-[#04140a] hover:brightness-110',
+    danger:
+      'border-[color:var(--color-danger)]/40 bg-[color:var(--color-danger)]/10 text-[color:var(--color-danger)] hover:bg-[color:var(--color-danger)]/20',
+    ghost: 'border-transparent bg-transparent text-fg-muted hover:bg-ink-850 hover:text-fg',
   }
-  const sizes = { sm: 'px-2.5 py-1 text-xs', md: 'px-3.5 py-1.5 text-sm' }
+  const sizes = { sm: 'px-2.5 py-1 text-label normal-case tracking-normal', md: 'px-4 py-2 text-small' }
   return (
     <button
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg border font-medium transition
-        disabled:cursor-not-allowed disabled:opacity-40 ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-lg border font-medium
+        transition-all duration-[var(--dur-fast)] disabled:cursor-not-allowed disabled:opacity-40
+        ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}
-    >
-      {children}
-    </button>
+    />
   )
 }
 
 export function Field({ label, hint, children }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-medium text-zinc-400">{label}</span>
+      <span className="eyebrow mb-2 block">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-[11px] text-zinc-600">{hint}</span>}
+      {hint && <span className="mt-1.5 block text-label text-fg-faint normal-case">{hint}</span>}
     </label>
   )
 }
@@ -78,53 +142,172 @@ export function Field({ label, hint, children }) {
 export function Input({ className = '', ...props }) {
   return (
     <input
-      className={`w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm text-zinc-100
-        placeholder:text-zinc-600 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none ${className}`}
+      className={`w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-body text-fg
+        transition-colors duration-[var(--dur-fast)] placeholder:text-fg-faint
+        focus:border-brand-500 focus:outline-none ${className}`}
       {...props}
     />
   )
 }
 
-export function Stat({ label, value, sub, accent = 'text-zinc-100' }) {
+/** State only. Never decoration. */
+export function Status({ state, children, className = '' }) {
+  const map = {
+    ok: 'text-[color:var(--color-ok)]',
+    warn: 'text-[color:var(--color-warn)]',
+    danger: 'text-[color:var(--color-danger)]',
+    brand: 'text-brand-300',
+    muted: 'text-fg-subtle',
+  }
   return (
-    <div className="rounded-xl border border-ink-800 bg-ink-900/60 px-5 py-4">
-      <div className="text-xs font-medium text-zinc-500">{label}</div>
-      <div className={`tnum mt-1.5 text-2xl font-semibold ${accent}`}>{value}</div>
-      {sub && <div className="mt-1 text-xs text-zinc-600">{sub}</div>}
-    </div>
+    <span className={`inline-flex items-center gap-1.5 text-label ${map[state]} ${className}`}>
+      <span className="h-1 w-1 rounded-full bg-current" />
+      {children}
+    </span>
   )
 }
 
-export function Empty({ icon = '—', title, hint }) {
+export function Badge({ children, className = '' }) {
   return (
-    <div className="flex flex-col items-center justify-center py-12 text-center">
-      <div className="mb-3 text-2xl text-ink-600">{icon}</div>
-      <p className="text-sm font-medium text-zinc-400">{title}</p>
-      {hint && <p className="mt-1 max-w-sm text-xs text-zinc-600">{hint}</p>}
-    </div>
+    <span
+      className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-label font-medium
+        tracking-normal normal-case ring-1 ring-inset ${className}`}
+    >
+      {children}
+    </span>
   )
 }
 
 export function Mono({ children, className = '' }) {
-  return <span className={`font-mono text-[11px] text-zinc-500 ${className}`}>{children}</span>
+  return (
+    <span className={`font-mono text-label tracking-normal normal-case text-fg-faint ${className}`}>
+      {children}
+    </span>
+  )
+}
+
+export function Rule({ className = '' }) {
+  return <div className={`h-px bg-ink-800 ${className}`} />
 }
 
 export function Alert({ kind = 'error', children }) {
   const kinds = {
-    error: 'border-rose-500/30 bg-rose-500/10 text-rose-200',
-    warn: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
-    info: 'border-brand-500/30 bg-brand-500/10 text-brand-400',
-    success: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
+    error:
+      'border-[color:var(--color-danger)]/30 bg-[color:var(--color-danger)]/[0.07] text-[color:var(--color-danger)]',
+    warn: 'border-[color:var(--color-warn)]/30 bg-[color:var(--color-warn)]/[0.07] text-[color:var(--color-warn)]',
+    info: 'border-brand-500/30 bg-brand-500/[0.07] text-brand-300',
+    success:
+      'border-[color:var(--color-ok)]/30 bg-[color:var(--color-ok)]/[0.07] text-[color:var(--color-ok)]',
   }
+  return <div className={`rounded-lg border px-3.5 py-2.5 text-small ${kinds[kind]}`}>{children}</div>
+}
+
+/**
+ * Loading, in the language of the mark: the two loops hold still and the
+ * decision node pulses. A generic spinner says "wait"; this says "the system
+ * is deciding", which is the only thing this product ever makes you wait for.
+ */
+export function Loading({ label = 'Loading', className = '' }) {
   return (
-    <div className={`rounded-lg border px-3.5 py-2.5 text-xs ${kinds[kind]}`}>{children}</div>
+    <div className={`flex flex-col items-center justify-center gap-3 py-14 ${className}`}>
+      <LogoMark size={44} live className="text-brand-500 v-orbit" />
+      <span className="eyebrow">{label}</span>
+    </div>
   )
 }
 
-export function Spinner() {
+export function Skeleton({ className = '' }) {
+  return <div className={`v-skeleton ${className}`} />
+}
+
+/** Empty states use the same node language rather than an icon font. */
+export function Empty({ title, hint, action }) {
   return (
-    <div className="flex items-center justify-center py-10">
-      <div className="h-5 w-5 animate-spin rounded-full border-2 border-ink-700 border-t-brand-500" />
+    <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+      <svg width="52" height="32" viewBox="0 0 100 62" fill="none" className="mb-5 text-ink-700">
+        <ellipse cx="26" cy="31" rx="24" ry="20" stroke="currentColor" strokeWidth="2.5" />
+        <ellipse cx="62" cy="31" rx="35" ry="29" stroke="currentColor" strokeWidth="2.5" />
+        <circle cx="43" cy="31" r="5" fill="currentColor" />
+      </svg>
+      <p className="text-heading font-medium text-fg-muted">{title}</p>
+      {hint && <p className="mt-2 max-w-xs text-small text-fg-faint">{hint}</p>}
+      {action && <div className="mt-5">{action}</div>}
     </div>
   )
+}
+
+/** Scroll-triggered reveal. Fires once, then stops observing. */
+export function Reveal({ children, delay = 0, className = '' }) {
+  const ref = useRef(null)
+  const [shown, setShown] = useState(false)
+
+  useEffect(() => {
+    const node = ref.current
+    if (!node) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setShown(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.15, rootMargin: '0px 0px -60px 0px' },
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div ref={ref} data-shown={shown} style={{ transitionDelay: `${delay}ms` }}
+      className={`v-reveal ${className}`}
+    >
+      {children}
+    </div>
+  )
+}
+
+/* Kept for compatibility with pages not yet migrated off the old card API. */
+export function Card({ title, subtitle, right, children, className = '' }) {
+  return (
+    <Surface className={className}>
+      {(title || right) && (
+        <header className="flex items-start justify-between gap-4 border-b border-ink-800 px-5 py-3.5">
+          <div>
+            {title && <h2 className="eyebrow">{title}</h2>}
+            {subtitle && <p className="mt-1 text-label text-fg-faint normal-case">{subtitle}</p>}
+          </div>
+          {right}
+        </header>
+      )}
+      <div className="p-5">{children}</div>
+    </Surface>
+  )
+}
+
+export const Spinner = Loading
+
+export function StateBadge({ state }) {
+  const map = {
+    BLOCKED: 'danger',
+    REJECTED: 'muted',
+    EXPIRED: 'muted',
+    PENDING_APPROVAL: 'warn',
+    APPROVED: 'ok',
+    PAYMENT_CREATED: 'brand',
+    PAYMENT_CREATION_FAILED: 'warn',
+    PAYMENT_SUCCESS: 'ok',
+    PAYMENT_FAILED: 'danger',
+  }
+  return <Status state={map[state] || 'muted'}>{state?.replace(/_/g, ' ').toLowerCase()}</Status>
+}
+
+export function DecisionBadge({ decision }) {
+  const map = {
+    APPROVED: ['ok', 'approved'],
+    PENDING_APPROVAL: ['warn', 'needs approval'],
+    BLOCKED: ['danger', 'blocked'],
+  }
+  const entry = map[decision]
+  if (!entry) return null
+  return <Status state={entry[0]}>{entry[1]}</Status>
 }

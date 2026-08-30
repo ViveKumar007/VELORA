@@ -26,6 +26,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.agent.recovery import find_recovery
 from app.gate import EvalContext, evaluate
 from app.models import (
     Agent,
@@ -255,6 +256,13 @@ def handle_purchase_request(
 
     # --- Apply the decision -----------------------------------------------
     if verdict.decision == Decision.BLOCKED:
+        # A refusal on price or merchant scope is not the end of the sale.
+        # Look for something this same policy would approve and offer it, so
+        # the merchant keeps a buyer who has both intent and budget.
+        recovery = find_recovery(db, ctx, verdict.reason_code)
+        if recovery is not None:
+            txn.recovery = recovery.to_dict()
+
         move_state(
             db, txn, TxnState.BLOCKED,
             event_type=EventType.DECISION_MADE,
@@ -262,6 +270,20 @@ def handle_purchase_request(
             reason_code=str(verdict.reason_code),
             explanation=verdict.explanation,
         )
+        if recovery is not None:
+            audit.record(
+                db,
+                event_type=EventType.RECOVERY_OFFERED,
+                transaction_id=txn.id,
+                agent_id=agent.id,
+                policy_id=txn.policy_id,
+                explanation=(
+                    f"Blocked, but an in-policy alternative was offered: {recovery.explanation}"
+                ),
+                previous_state=str(TxnState.BLOCKED),
+                new_state=str(TxnState.BLOCKED),
+                metadata=txn.recovery,
+            )
         db.commit()
         return txn, False
 

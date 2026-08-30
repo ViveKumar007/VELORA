@@ -236,3 +236,68 @@ def handle_webhook_event(db: Session, event: dict[str, Any]) -> TransactionReque
 
     db.commit()
     return txn
+
+
+def confirm_client_payment(
+    db: Session,
+    transaction_id: str,
+    *,
+    payment_id: str,
+    signature: str,
+) -> TransactionRequest:
+    """Settle a transaction from a browser checkout result.
+
+    Razorpay cannot reach localhost, and even in production a user may close
+    the tab before the webhook lands, so Checkout hands the result back to the
+    browser. That result is untrusted input: anyone can POST "I paid". The
+    signature is what makes it credible -- HMAC over "order_id|payment_id"
+    keyed with the API secret, which only Razorpay and this server know.
+
+    Once verified, the result is converted into exactly the event shape a
+    webhook produces and handed to handle_webhook_event. Deliberately not a
+    parallel settlement path: the duplicate-suppression, out-of-order and
+    budget-settlement rules are the same code, so the two routes cannot drift.
+    """
+    txn = _lock_transaction(db, transaction_id)
+
+    if not txn.payment_order_id:
+        raise PaymentNotAllowed("This transaction has no payment order to confirm.")
+
+    provider = get_provider()
+    if not provider.verify_payment_signature(txn.payment_order_id, payment_id, signature):
+        # A bad signature is a security event, not a user error. Record it.
+        audit.record(
+            db,
+            event_type=EventType.PAYMENT_FAILED,
+            transaction_id=txn.id,
+            agent_id=txn.agent_id,
+            policy_id=txn.policy_id,
+            explanation=(
+                "Rejected a payment confirmation whose signature did not verify. "
+                "No settlement was applied."
+            ),
+            previous_state=txn.state,
+            new_state=txn.state,
+            metadata={"order_id": txn.payment_order_id, "claimed_payment_id": payment_id},
+        )
+        db.commit()
+        raise PaymentNotAllowed(
+            "Payment signature verification failed. Nothing was settled."
+        )
+
+    event = {
+        "event": "payment.captured",
+        "payload": {
+            "payment": {
+                "entity": {
+                    "id": payment_id,
+                    "order_id": txn.payment_order_id,
+                    "status": "captured",
+                }
+            }
+        },
+    }
+    settled = handle_webhook_event(db, event)
+    if settled is None:
+        raise PaymentNotAllowed("Confirmation did not match any transaction.")
+    return settled

@@ -50,3 +50,15 @@ class PaymentProvider(Protocol):
     def verify_webhook(self, payload: bytes, signature: str) -> bool:
         """Return True only if the payload genuinely came from the provider."""
         ...
+
+    def verify_payment_signature(
+        self, order_id: str, payment_id: str, signature: str
+    ) -> bool:
+        """Verify a checkout result handed back by the browser.
+
+        The browser is not trusted. After Razorpay Checkout completes it
+        returns a payment id and a signature over "order_id|payment_id"; only
+        a party holding the key secret could have produced it. Without this
+        check, any client could POST "I paid" and settle a transaction.
+        """
+        ...

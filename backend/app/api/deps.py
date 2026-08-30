@@ -7,9 +7,10 @@ from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.auth import AuthError, read_session
 from app.config import settings
 from app.db import get_db
-from app.models import Agent, User
+from app.models import Agent, Merchant, User
 from app.security import hash_token
 
 DbSession = Annotated[Session, Depends(get_db)]
@@ -68,12 +69,23 @@ def _check_operator_token(supplied: str | None) -> None:
         )
 
 
+def _bearer(authorization: str | None) -> str:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not signed in. Send 'Authorization: Bearer <session token>'.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return authorization.split(" ", 1)[1].strip()
+
+
 def current_user(
     db: DbSession,
+    authorization: Annotated[str | None, Header()] = None,
     x_user_id: Annotated[str | None, Header()] = None,
     x_velora_token: Annotated[str | None, Header()] = None,
 ) -> User:
-    """Resolve the human operator.
+    """Resolve the signed-in buyer.
 
     Security note. An earlier version resolved whichever user id arrived in
     the X-User-Id header. Because that header is unauthenticated, anyone who
@@ -82,39 +94,75 @@ def current_user(
     ownership checks downstream were correct, but they were checking against
     an attacker-chosen identity.
 
-    The header is now ignored unless dev_allow_user_header is explicitly
-    switched on for local multi-user testing. By default this is a
-    single-operator deployment: the seeded user, optionally behind a shared
-    operator token.
-
-    Real per-user sessions are still the right long-term answer, and this
-    function is the single place that has to change to add them.
+    Identity now comes from a signed session token issued at login. The header
+    is still refused explicitly rather than ignored, so anyone relying on the
+    old behaviour gets a clear error instead of silently acting as the wrong
+    person.
     """
     _check_operator_token(x_velora_token)
 
-    if x_user_id:
-        if not settings.dev_allow_user_header:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=(
-                    "X-User-Id is not accepted. Impersonating a user by header is "
-                    "disabled; set DEV_ALLOW_USER_HEADER=true for local multi-user "
-                    "testing only."
-                ),
-            )
+    if x_user_id and not settings.dev_allow_user_header:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "X-User-Id is not accepted. Sign in at /api/auth/login and send the "
+                "session token as a bearer token instead."
+            ),
+        )
+
+    if x_user_id and settings.dev_allow_user_header:
         user = db.get(User, x_user_id)
         if user is None:
             raise HTTPException(status_code=404, detail=f"No user {x_user_id}.")
         return user
 
-    user = db.scalars(select(User).order_by(User.created_at.asc()).limit(1)).first()
+    try:
+        user_id = read_session(_bearer(authorization), expect="user")
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)
+        ) from exc
+
+    user = db.get(User, user_id)
     if user is None:
         raise HTTPException(
-            status_code=503,
-            detail="No user exists yet. Run the seed script first: python -m app.seed",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="This session refers to an account that no longer exists.",
         )
     return user
 
 
+def current_merchant(
+    db: DbSession,
+    authorization: Annotated[str | None, Header()] = None,
+) -> Merchant:
+    """Resolve the signed-in merchant.
+
+    A buyer session presented here fails: read_session checks the audience the
+    token was minted for, so the two consoles cannot be crossed even though
+    they share a token format.
+    """
+    try:
+        merchant_id = read_session(_bearer(authorization), expect="merchant")
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)
+        ) from exc
+
+    merchant = db.get(Merchant, merchant_id)
+    if merchant is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="This session refers to a merchant that no longer exists.",
+        )
+    if merchant.status != "ACTIVE":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"This merchant account is {merchant.status.lower()}.",
+        )
+    return merchant
+
+
 CurrentAgent = Annotated[Agent, Depends(require_agent)]
 CurrentUser = Annotated[User, Depends(current_user)]
+CurrentMerchant = Annotated[Merchant, Depends(current_merchant)]
