@@ -47,13 +47,36 @@ _BUDGET_PATTERNS = (
 
 @dataclass
 class ShoppingIntent:
-    """What the user appears to want. None means 'unspecified', never 'zero'."""
+    """What the user appears to want. None means 'unspecified', never 'zero'.
+
+    The first five fields are the original rules-parser output and every
+    scoring rule still reads only those. The rest describe *why* something is
+    wanted -- the dish being cooked, the items it needs -- which is what lets
+    selection tell "make pasta" apart from "buy headphones" instead of
+    ranking the whole shop by rating. They default to empty, so an intent
+    built by the rules parser alone behaves exactly as it always did.
+    """
 
     raw_text: str
     product_query: str = ""
     max_budget_paise: int | None = None
     category: str | None = None
     preferences: list[str] = field(default_factory=list)
+
+    #: What the person is doing: buy, cook, restock, unknown.
+    kind: str = "buy"
+    #: The dish named, when the request is about cooking something.
+    dish: str | None = None
+    #: Generic items the request needs, e.g. ["pasta", "olive oil"].
+    required_items: list[str] = field(default_factory=list)
+    #: Restrictions stated in words, e.g. ["under 2000", "wireless"].
+    constraints: list[str] = field(default_factory=list)
+    #: Set when the request cannot be acted on without asking a question.
+    needs_clarification: bool = False
+    clarification: str | None = None
+    #: "gemini" or "rules" -- shown in the console so the operator knows
+    #: which parser produced the reading in front of them.
+    source: str = "rules"
 
     def to_dict(self) -> dict:
         return {
@@ -62,6 +85,13 @@ class ShoppingIntent:
             "max_budget_paise": self.max_budget_paise,
             "category": self.category,
             "preferences": list(self.preferences),
+            "kind": self.kind,
+            "dish": self.dish,
+            "required_items": list(self.required_items),
+            "constraints": list(self.constraints),
+            "needs_clarification": self.needs_clarification,
+            "clarification": self.clarification,
+            "source": self.source,
         }
 
 

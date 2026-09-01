@@ -79,7 +79,7 @@ export default function MerchantConsole() {
         {!mine.length ? (
           <Empty title="No products listed" />
         ) : (
-          <div className="-mx-2 overflow-x-auto">
+          <div className="edge-fade -mx-2 overflow-x-auto">
             <table className="w-full min-w-[560px]">
               <thead>
                 <tr className="border-b border-ink-800">

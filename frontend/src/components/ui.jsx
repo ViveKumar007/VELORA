@@ -40,9 +40,11 @@ export function Surface({ children, className = '', interactive = false, tone })
   }
   return (
     <div
-      className={`rounded-xl border ${tone ? tones[tone] : 'border-ink-800 bg-ink-950'} ${
+      className={`rounded-[var(--radius-md)] border shadow-[var(--shadow-raise)] ${
+        tone ? tones[tone] : 'border-ink-800 bg-ink-950'
+      } ${
         interactive
-          ? 'transition-colors duration-[var(--dur-base)] hover:border-ink-700 hover:bg-ink-900'
+          ? 'transition-all duration-[var(--dur-base)] ease-[var(--ease-out-soft)] hover:border-ink-700 hover:bg-ink-900 hover:shadow-[var(--shadow-float)]'
           : ''
       } ${className}`}
     >
@@ -86,6 +88,14 @@ export function CountUp({ value, duration = 520 }) {
     const delta = value - origin
     if (delta === 0) return
 
+    // A requestAnimationFrame count cannot be stopped by a CSS media query,
+    // so reduced motion has to be honoured here in JS or not at all.
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      from.current = value
+      setShown(value)
+      return
+    }
+
     const tick = (now) => {
       const t = Math.min(1, (now - start) / duration)
       const eased = 1 - Math.pow(1 - t, 3)
@@ -118,14 +128,25 @@ export function Button({
       'border-[color:var(--color-danger)]/40 bg-[color:var(--color-danger)]/10 text-[color:var(--color-danger)] hover:bg-[color:var(--color-danger)]/20',
     ghost: 'border-transparent bg-transparent text-fg-muted hover:bg-ink-850 hover:text-fg',
   }
-  const sizes = { sm: 'px-2.5 py-1 text-label normal-case tracking-normal', md: 'px-4 py-2 text-small' }
+  const sizes = {
+    sm: 'px-2.5 py-1 text-label normal-case tracking-normal',
+    md: 'px-4 py-2 text-small',
+  }
+  // `children` is destructured out of props above, so it has to be rendered
+  // explicitly. The element was previously self-closing, which meant every
+  // button in the product drew as an empty coloured bar with its label
+  // silently dropped.
   return (
     <button
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg border font-medium
-        transition-all duration-[var(--dur-fast)] disabled:cursor-not-allowed disabled:opacity-40
+      className={`inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border
+        font-medium transition-all duration-[var(--dur-fast)] ease-[var(--ease-out-soft)]
+        active:translate-y-px active:brightness-95
+        disabled:cursor-not-allowed disabled:opacity-40 disabled:active:translate-y-0
         ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}
-    />
+    >
+      {children}
+    </button>
   )
 }
 
@@ -139,12 +160,18 @@ export function Field({ label, hint, children }) {
   )
 }
 
+/**
+ * The focus ring is deliberately not suppressed. An earlier version set
+ * `focus:outline-none` and recoloured the border instead, which made keyboard
+ * focus *weaker* than mouse hover — on a screen where you approve payments,
+ * not knowing which field you are in is a real failure.
+ */
 export function Input({ className = '', ...props }) {
   return (
     <input
-      className={`w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-body text-fg
-        transition-colors duration-[var(--dur-fast)] placeholder:text-fg-faint
-        focus:border-brand-500 focus:outline-none ${className}`}
+      className={`w-full rounded-[var(--radius-sm)] border border-[color:var(--color-border-control)]
+        bg-ink-900 px-3 py-2 text-body text-fg transition-colors duration-[var(--dur-fast)]
+        placeholder:text-fg-faint hover:border-ink-500 focus:border-brand-500 ${className}`}
       {...props}
     />
   )
@@ -161,7 +188,9 @@ export function Status({ state, children, className = '' }) {
   }
   return (
     <span className={`inline-flex items-center gap-1.5 text-label ${map[state]} ${className}`}>
-      <span className="h-1 w-1 rounded-full bg-current" />
+      {/* 6px, matching every other node in the interface. At 4px it read as
+          dirt on the screen rather than as an indicator. */}
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
       {children}
     </span>
   )

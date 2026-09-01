@@ -11,11 +11,23 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, Response
 
-from app.agent import recommend
+from app.agent import recommend, recommend_basket
 from app.api.deps import CurrentAgent, DbSession
-from app.schemas.api import AgentRunIn, AgentRunOut, PurchaseRequestIn, TransactionView
+from app.schemas.api import (
+    AgentRunIn,
+    AgentRunOut,
+    BasketIn,
+    BasketOut,
+    BasketRequestIn,
+    PurchaseRequestIn,
+    TransactionView,
+)
 from app.services import events
-from app.services.gateway import IdempotencyConflict, handle_purchase_request
+from app.services.gateway import (
+    IdempotencyConflict,
+    handle_basket_request,
+    handle_purchase_request,
+)
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
@@ -108,3 +120,59 @@ def run_agent(payload: AgentRunIn, db: DbSession, agent: CurrentAgent):
         recommendation=recommendation.to_dict(),
         transaction=TransactionView.build(txn, replayed=replayed),
     )
+
+
+@router.post("/basket", response_model=BasketOut)
+def build_basket(payload: BasketIn, db: DbSession, agent: CurrentAgent):
+    """Assemble a shopping list from a goal. Proposes only; submits nothing.
+
+    Separate from /basket/request on purpose. Reading a recipe and asking
+    permission to buy it are different acts, and the person confirming the
+    basket gets to see and edit it in between.
+    """
+    return BasketOut(goal=payload.goal, basket=recommend_basket(db, payload.goal).to_dict())
+
+
+@router.post("/basket/request", response_model=TransactionView)
+def submit_basket_request(
+    payload: BasketRequestIn,
+    response: Response,
+    db: DbSession,
+    agent: CurrentAgent,
+):
+    """Ask Velora to authorize a whole basket as one decision.
+
+    The basket total is judged against the per-purchase limit, and every
+    merchant and category in it must be inside the authorization. One
+    transaction, one decision, one audit chain -- and therefore one payment.
+    """
+    try:
+        txn, replayed = handle_basket_request(
+            db,
+            agent,
+            product_ids=payload.product_ids,
+            idempotency_key=payload.idempotency_key,
+            label=payload.label,
+            claimed_agent_id=payload.agent_id,
+            agent_rationale=payload.rationale,
+        )
+    except IdempotencyConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if replayed:
+        response.status_code = 200
+        response.headers["Idempotent-Replay"] = "true"
+    else:
+        events.publish(
+            "transaction.decided",
+            {
+                "transaction_id": txn.id,
+                "decision": txn.decision,
+                "state": txn.state,
+                "agent_id": txn.agent_id,
+            },
+        )
+
+    return TransactionView.build(txn, replayed=replayed)

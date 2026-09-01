@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Alert, Button, Field, Input } from '../components/ui'
+import { Logo } from '../components/Logo'
 import { api } from '../lib/api'
 
 /**
@@ -33,23 +34,24 @@ export default function Login({ onSignedIn }) {
   }
 
   return (
-    <div className="mx-auto flex min-h-[80vh] max-w-md flex-col justify-center px-6">
-      <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-heading font-bold text-white">
-          V
-        </div>
-        <h1 className="text-title font-semibold tracking-tight text-fg">
-          Sign in to Velora
-        </h1>
-        <p className="mt-1.5 text-small text-fg-subtle">
-          Define what your agents may spend, and approve what they cannot.
-        </p>
-      </div>
+    <div className="v-page mx-auto flex min-h-[88vh] max-w-sm flex-col justify-center px-6">
+      {/* The mark itself, at its real proportions. The previous gradient
+          square with a letter in it was the one element on this screen that
+          could have belonged to any product. */}
+      <Link to="/" className="mb-10 inline-flex w-fit">
+        <Logo size={24} live />
+      </Link>
 
-      <form
-        onSubmit={submit}
-        className="space-y-4 rounded-xl border border-ink-800 bg-ink-900/60 p-6"
-      >
+      <h1 className="text-title font-semibold tracking-tight text-balance text-fg">
+        Define the boundary.
+      </h1>
+      <p className="mt-3 text-body leading-relaxed text-fg-muted">
+        Sign in to set what your agents may spend, and to decide on what they cannot.
+      </p>
+
+      {/* No panel. The fields are the form; a border around them would only
+          repeat what the whitespace already says. */}
+      <form onSubmit={submit} className="mt-10 space-y-5">
         <Field label="Email">
           <Input type="email" value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -71,19 +73,23 @@ export default function Login({ onSignedIn }) {
         <Button type="submit" variant="primary" disabled={busy} className="w-full">
           {busy ? 'Signing in…' : 'Sign in'}
         </Button>
-
-        <p className="pt-1 text-center text-label tracking-normal normal-case text-fg-faint">
-          Demo account: <code className="font-mono">demo@velora.local</code> /{' '}
-          <code className="font-mono">velora123</code>
-        </p>
       </form>
 
-      <p className="mt-6 text-center text-small text-fg-faint">
-        Selling through Velora?{' '}
-        <Link to="/merchant/login" className="font-medium text-brand-400 hover:text-brand-500">
-          Merchant sign-in →
-        </Link>
-      </p>
+      <div className="mt-10 border-t border-ink-900 pt-5">
+        <p className="text-label tracking-normal normal-case text-fg-faint">
+          Demo account <span className="font-mono text-fg-subtle">demo@velora.local</span>
+          <span className="mx-1.5 text-ink-700">/</span>
+          <span className="font-mono text-fg-subtle">velora123</span>
+        </p>
+        <p className="mt-2.5 text-label tracking-normal normal-case text-fg-faint">
+          Selling through Velora?{' '}
+          <Link to="/merchant/login"
+            className="font-medium text-brand-400 transition-colors hover:text-brand-300"
+          >
+            Merchant sign-in →
+          </Link>
+        </p>
+      </div>
     </div>
   )
 }

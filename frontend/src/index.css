@@ -23,13 +23,28 @@
   --color-ink-600: #343945;
   --color-ink-500: #4a5060;
 
+  /* The edge of an editable control, as distinct from a divider.
+     A border that is the only thing marking a field needs 3:1 against the
+     field's own fill (WCAG 2.2 non-text contrast); at ink-700 an input read
+     as a painted rectangle rather than something you could type into.
+     Measures 3.01:1 on ink-900. Section hairlines stay deliberately faint —
+     they separate content, they are not controls. */
+  --color-border-control: #5b6172;
+
   /* --- Text --------------------------------------------------------------
      Four steps only. Anything needing a fifth is a hierarchy problem, not a
-     colour problem. */
+     colour problem.
+
+     Every step clears WCAG AA (4.5:1) against the page. The bottom two did
+     not: fg-subtle sat at 4.07:1 and fg-faint at 2.48:1, and fg-faint is the
+     default colour of the Mono component — so transaction ids, timestamps,
+     reason codes and hint text, the exact content a reviewer has to read
+     carefully, were the least readable thing on screen. Measured on
+     ink-1000: 16.4 / 7.9 / 5.7 / 4.6. */
   --color-fg: #e9eaee;
   --color-fg-muted: #9ea4b0;
-  --color-fg-subtle: #6b7280;
-  --color-fg-faint: #4b5160;
+  --color-fg-subtle: #848a96;
+  --color-fg-faint: #767b86;
 
   /* --- Accent ------------------------------------------------------------
      From the mark. Reserved for live processes, selection, authorization and
@@ -72,6 +87,26 @@
   --text-label--letter-spacing: 0.08em;
 
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* --- Radius ------------------------------------------------------------
+     Three steps, assigned by what a thing IS, not by how big it is:
+       sm  controls you click (buttons, chips, inputs)
+       md  objects you read (a transaction, an agent, a decision)
+       lg  a surface that contains other surfaces
+     Anything rounder starts to read as a consumer app rather than an
+     instrument, which is the wrong register for money moving. */
+  --radius-sm: 7px;
+  --radius-md: 11px;
+  --radius-lg: 16px;
+
+  /* --- Elevation ---------------------------------------------------------
+     Depth comes from a lifted border plus a long, very low-opacity shadow —
+     never from a gradient. The ambient ring is what separates a raised
+     surface from the near-black ground without lightening it. */
+  --shadow-raise:
+    0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.65);
+  --shadow-float:
+    0 2px 4px rgb(0 0 0 / 0.4), 0 24px 56px -20px rgb(0 0 0 / 0.75);
 
   /* --- Motion ------------------------------------------------------------
      Three durations. Everything eases out — things arrive and settle, they
@@ -129,10 +164,72 @@ body {
   background: rgb(109 94 240 / 0.28);
 }
 
+/* One focus treatment for the whole product, and it is never removed — only
+   ever moved. A control that hides its focus ring is unusable by keyboard,
+   and this is an interface for authorising payments. */
 :focus-visible {
   outline: 2px solid var(--color-brand-500);
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+/* Text controls draw the ring tight to the field instead of around it, so a
+   focused input does not visually collide with its neighbour. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-offset: 0;
+  border-color: var(--color-brand-500);
+}
+
+/* --------------------------------------------------------------------------
+   Pointer affordance.
+
+   Tailwind v4's Preflight dropped the v3 default of `cursor: pointer` on
+   buttons, so every button in the product was silently showing the plain
+   arrow: the primary action, the filter tabs, the preset chips, the sidebar
+   items, Approve and Reject. Nothing looked clickable until you clicked it.
+
+   Set once here rather than as a utility on ~40 call sites, so a new button
+   cannot be added without it.
+   -------------------------------------------------------------------------- */
+button:not(:disabled),
+[role='button']:not([aria-disabled='true']),
+summary,
+label[for] {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+
+/* --------------------------------------------------------------------------
+   Ambient light behind the hero instrument.
+
+   Not a "glow": a single wide radial at 6% that lets the gate card sit off
+   the near-black ground. Anything stronger and it becomes the decoration
+   this product spent its whole design budget avoiding.
+   -------------------------------------------------------------------------- */
+.aura {
+  background:
+    radial-gradient(58% 44% at 50% 42%, rgb(109 94 240 / 0.1), transparent 70%);
+  filter: blur(28px);
+}
+
+/* Horizontal scroll affordance: the right edge of an overflowing table fades,
+   so it is visible that columns continue rather than simply ending. */
+.edge-fade {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+}
+@media (min-width: 1024px) {
+  .edge-fade {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
 }
 
 /* ==========================================================================
@@ -211,6 +308,74 @@ body {
 .v-flow {
   stroke-dasharray: 3 7;
   animation: v-signal 1.2s linear infinite;
+}
+
+/* --------------------------------------------------------------------------
+   The signature: a connection drawing itself between two nodes.
+
+   This is the one motion idea the product is built on — the mark is two
+   loops joined at a decision point, and every sequence in the interface is
+   something travelling from one node to the next. A step's connector draws
+   downward as the step resolves, so the eye is pulled along the evaluation
+   in the order it actually happened.
+   -------------------------------------------------------------------------- */
+@keyframes v-draw {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+.v-draw {
+  transform-origin: top;
+  animation: v-draw var(--dur-slow) var(--ease-out-soft) both;
+}
+
+/* A node coming to rest once its check has resolved: it arrives slightly
+   large and settles, the way a mechanical indicator seats itself. */
+@keyframes v-seat {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.v-seat {
+  animation: v-seat var(--dur-base) var(--ease-out-soft) both;
+}
+
+/* The mobile drawer travels laterally, because that is the direction it came
+   from. A vertical fade here reads as a rendering glitch. */
+@keyframes v-drawer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: none;
+  }
+}
+.v-drawer {
+  animation: v-drawer var(--dur-base) var(--ease-out-soft) both;
+}
+
+@keyframes v-scrim {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.v-scrim {
+  animation: v-scrim var(--dur-base) var(--ease-out-soft) both;
 }
 
 /* Loading, in the language of the mark: two loops, one lit node. */

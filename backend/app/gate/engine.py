@@ -74,11 +74,21 @@ def _pending_explanation(ctx: EvalContext, review: CheckResult) -> str:
     )
 
 
+def _subject(ctx: EvalContext) -> str:
+    """What the decision is about, in words. A basket is a count, not a name."""
+    if ctx.is_basket:
+        count = len(((ctx.metadata or {}).get("basket") or {}).get("items") or [])
+        merchants = ctx.all_merchants()
+        across = f" across {' and '.join(merchants)}" if len(merchants) > 1 else ""
+        return f"{count} items{across}"
+    return ctx.product.name if ctx.product else "this item"
+
+
 def _approved_explanation(ctx: EvalContext) -> str:
     if ctx.policy is None:
         return "Approved."
     return (
-        f"{format_inr(ctx.amount_paise)} for {ctx.product.name if ctx.product else 'this item'} "
+        f"{format_inr(ctx.amount_paise)} for {_subject(ctx)} "
         f"is within the {format_inr(ctx.policy.max_per_transaction_paise)} per-purchase limit, "
         f"the merchant and category are both permitted, and the amount is at or below the "
         f"{format_inr(ctx.policy.approval_threshold_paise)} automatic approval threshold."

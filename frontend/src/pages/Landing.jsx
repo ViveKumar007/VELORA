@@ -46,109 +46,133 @@ export default function Landing() {
         </div>
       </header>
 
-      {/* Hero */}
+      {/* Hero.
+
+          The instrument on the right is the thesis: a real evaluation
+          sequence running on a loop, refusing every third purchase. A gate
+          that only ever says yes demonstrates nothing, so the refusal is
+          part of the pitch rather than hidden from it. */}
       <section className="relative overflow-hidden">
-        <div className="mx-auto grid max-w-6xl items-center gap-14 px-6 py-20 lg:grid-cols-[1.05fr_1fr] lg:py-28">
+        <div className="mx-auto grid max-w-6xl items-center gap-16 px-6 py-20 lg:grid-cols-[1.05fr_1fr] lg:py-28">
           <div>
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-ink-800 bg-ink-900/60 px-3 py-1">
+            <div className="mb-7 flex items-center gap-2.5">
               <span className="h-1.5 w-1.5 rounded-full bg-brand-400 v-live" />
-              <span className="eyebrow text-fg-muted">
+              <span className="eyebrow text-fg-subtle">
                 Authorization infrastructure for agentic commerce
               </span>
             </div>
 
-            <h1 className="text-5xl font-semibold tracking-tighter text-fg sm:text-6xl">
+            <h1 className="text-display font-semibold text-balance text-fg">
               Let AI act.
               <br />
               <span className="text-brand-400">Keep control.</span>
             </h1>
 
-            <p className="mt-6 max-w-lg text-heading leading-relaxed text-fg-muted">
+            <p className="mt-7 max-w-md text-heading leading-relaxed text-fg-muted">
               Velora gives AI agents permission to act within limits you define — verifying
               every transaction before money moves.
             </p>
 
-            <div className="mt-9 flex flex-wrap gap-3">
+            <div className="mt-10 flex flex-wrap items-center gap-3">
               <Link to="/login"
-                className="rounded-xl bg-brand-500 px-5 py-2.5 text-small font-semibold text-white shadow-lg shadow-brand-500/20 transition hover:bg-brand-400"
+                className="rounded-[var(--radius-sm)] bg-brand-500 px-5 py-2.5 text-small font-semibold text-white shadow-[var(--shadow-raise)] transition-all duration-[var(--dur-fast)] ease-[var(--ease-out-soft)] hover:bg-brand-400 active:translate-y-px"
               >
                 Launch dashboard
               </Link>
               <a href="#how"
-                className="rounded-xl border border-ink-700 bg-ink-900/60 px-5 py-2.5 text-small font-semibold text-fg transition hover:border-ink-600 hover:bg-ink-800"
+                className="group inline-flex items-center gap-2 px-1 py-2.5 text-small font-medium text-fg-muted transition-colors duration-[var(--dur-fast)] hover:text-fg"
               >
                 See how it works
+                <span className="transition-transform duration-[var(--dur-base)] ease-[var(--ease-out-soft)] group-hover:translate-x-0.5">
+                  ↓
+                </span>
               </a>
             </div>
 
-            <p className="mt-8 font-mono text-label tracking-normal normal-case text-fg-faint">
-              AI decides what to do. Velora decides what it is allowed to do.
+            <p className="mt-10 border-l border-ink-800 pl-4 font-mono text-label tracking-normal normal-case leading-relaxed text-fg-faint">
+              AI decides what to do.
+              <br />
+              Velora decides what it is allowed to do.
             </p>
           </div>
 
-          <div className="drift">
-            <AuthFlow />
-          </div>
+          <AuthFlow />
         </div>
       </section>
 
-      {/* Thesis */}
+      {/* Thesis.
+
+          Three independent properties, so they are set as three columns
+          divided by hairlines rather than three numbered cards. Numbering
+          them would assert a sequence that does not exist — scoped authority
+          is not step one of transparency. */}
       <section className="border-y border-ink-900">
-        <div className="mx-auto max-w-6xl px-6 py-20">
-          <h2 className="max-w-2xl text-3xl font-semibold tracking-tight text-fg sm:text-4xl">
+        <div className="mx-auto max-w-6xl px-6 py-24">
+          <h2 className="max-w-2xl text-title font-semibold tracking-tight text-balance text-fg">
             AI should have authority.
             <span className="text-fg-faint"> Not unlimited access.</span>
           </h2>
 
-          <div className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-ink-800 bg-ink-800 sm:grid-cols-3">
+          <div className="mt-16 grid gap-12 sm:grid-cols-3 sm:gap-0">
             {PRINCIPLES.map((p, i) => (
-              <div key={p.title} className="bg-ink-950 p-7">
-                <div className="mb-4 font-mono text-label tracking-normal normal-case text-brand-400">
-                  0{i + 1}
-                </div>
-                <h3 className="text-body font-semibold text-fg">{p.title}</h3>
-                <p className="mt-2.5 text-small leading-relaxed text-fg-subtle">{p.body}</p>
+              <div key={p.title}
+                className={`sm:px-8 ${i === 0 ? 'sm:pl-0' : 'sm:border-l sm:border-ink-900'} ${
+                  i === PRINCIPLES.length - 1 ? 'sm:pr-0' : ''
+                }`}
+              >
+                <h3 className="text-heading font-medium text-fg">{p.title}</h3>
+                <p className="mt-3 text-small leading-relaxed text-fg-subtle">{p.body}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Flow */}
-      <section id="how" className="mx-auto max-w-6xl scroll-mt-20 px-6 py-20">
-        <h2 className="text-3xl font-semibold tracking-tight text-fg">
+      {/* Flow.
+
+          This one genuinely IS ordered — a purchase cannot be audited before
+          it is decided — so the sequence is drawn as a single connected rail
+          with a node per stage, in the language of the mark. Five separate
+          boxes would have broken one continuous process into five unrelated
+          facts. */}
+      <section id="how" className="mx-auto max-w-6xl scroll-mt-20 px-6 py-24">
+        <h2 className="text-title font-semibold tracking-tight text-fg">
           One purchase, end to end
         </h2>
-        <p className="mt-3 max-w-xl text-small leading-relaxed text-fg-subtle">
+        <p className="mt-4 max-w-xl text-body leading-relaxed text-fg-subtle">
           The agent never touches the payment provider. Every request passes through the
           gate first, and a refusal has no route to money.
         </p>
 
-        <ol className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <ol className="mt-16 grid gap-y-9 sm:grid-cols-2 lg:grid-cols-5 lg:gap-x-6">
           {STAGES.map(([title, body], i) => (
-            <li key={title}
-              className="relative rounded-xl border border-ink-800 bg-ink-950 p-5"
-            >
-              <div className="mb-3 flex items-center gap-2">
-                <span className="grid h-6 w-6 place-items-center rounded-lg bg-brand-500/12 font-mono text-label tracking-normal normal-case text-brand-300 ring-1 ring-brand-500/25">
-                  {i + 1}
-                </span>
-                {i < STAGES.length - 1 && (
-                  <span className="hidden h-px flex-1 bg-gradient-to-r from-brand-500/40 to-transparent lg:block" />
-                )}
-              </div>
-              <div className="text-small font-medium text-fg">{title}</div>
-              <div className="mt-1 text-small text-fg-subtle">{body}</div>
+            <li key={title} className="relative lg:pr-6">
+              {/* The rail. It stops at the last node rather than running off
+                  the edge, because the sequence genuinely ends there. */}
+              <span
+                aria-hidden
+                className={`absolute top-[5px] left-0 hidden h-px lg:block ${
+                  i === STAGES.length - 1 ? 'w-0' : 'w-full'
+                } ${i === 0 ? 'bg-brand-500/40' : 'bg-ink-800'}`}
+              />
+              <span
+                aria-hidden
+                className={`relative block h-[11px] w-[11px] rounded-full ring-4 ring-[color:var(--color-ink-1000)] ${
+                  i === 0 ? 'bg-brand-500' : 'bg-ink-700'
+                }`}
+              />
+              <div className="mt-5 text-small font-medium text-fg">{title}</div>
+              <div className="mt-1.5 text-small leading-relaxed text-fg-subtle">{body}</div>
             </li>
           ))}
         </ol>
 
-        <div className="mt-14 rounded-2xl border border-ink-800 bg-ink-950 p-8">
-          <div className="grid gap-8 sm:grid-cols-3">
-            <Metric value="13" label="policy checks per decision" note="every one runs, every time" />
-            <Metric value="0" label="paths from BLOCKED to paid" note="proven by graph traversal" />
-            <Metric value="131" label="tests passing" note="incl. concurrency and tamper" />
-          </div>
+        {/* Bare figures on a rule. A statistic is not an object and does not
+            need a container drawn around it. */}
+        <div className="mt-24 grid gap-10 border-t border-ink-900 pt-10 sm:grid-cols-3">
+          <Metric value="13" label="policy checks per decision" note="every one runs, every time" />
+          <Metric value="0" label="paths from BLOCKED to paid" note="proven by graph traversal" />
+          <Metric value="131" label="tests passing" note="incl. concurrency and tamper" />
         </div>
       </section>
 
@@ -171,9 +195,9 @@ export default function Landing() {
 function Metric({ value, label, note }) {
   return (
     <div>
-      <div className="tnum text-4xl font-semibold tracking-tight text-fg">{value}</div>
-      <div className="mt-1.5 text-small text-fg-muted">{label}</div>
-      <div className="mt-0.5 text-label tracking-normal normal-case text-fg-faint">{note}</div>
+      <div className="tnum text-display font-semibold text-fg">{value}</div>
+      <div className="mt-2 text-small text-fg-muted">{label}</div>
+      <div className="mt-1 text-label tracking-normal normal-case text-fg-faint">{note}</div>
     </div>
   )
 }

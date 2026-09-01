@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Alert, Button, Field, Input } from '../components/ui'
+import { LogoMark } from '../components/Logo'
 import { api } from '../lib/api'
 
 /**
@@ -33,23 +34,28 @@ export default function MerchantLogin({ onSignedIn }) {
   }
 
   return (
-    <div className="mx-auto flex min-h-[80vh] max-w-md flex-col justify-center px-6">
-      <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-[color:var(--color-ok)] to-[color:var(--color-ok-dim)] text-heading font-bold text-white">
-          M
-        </div>
-        <h1 className="text-title font-semibold tracking-tight text-fg">
-          Merchant console
-        </h1>
-        <p className="mt-1.5 text-small text-fg-subtle">
-          Sell to AI buyers. Every purchase gated, explained and audited.
-        </p>
-      </div>
+    <div className="v-page mx-auto flex min-h-[88vh] max-w-sm flex-col justify-center px-6">
+      {/* Same mark, seller's colour. The side of the deal you are on is
+          signalled by hue and wording, not by a different logo. */}
+      <Link to="/" className="mb-10 inline-flex w-fit items-center gap-3">
+        <LogoMark size={36} className="text-[color:var(--color-ok)]" />
+        <span className="leading-none">
+          <span className="block text-heading font-semibold tracking-tight text-fg">velora</span>
+          <span className="mt-1 block eyebrow text-[color:var(--color-ok)]/70 uppercase">
+            Merchant
+          </span>
+        </span>
+      </Link>
 
-      <form
-        onSubmit={submit}
-        className="space-y-4 rounded-xl border border-[color:var(--color-ok)]/20 bg-[color:var(--color-ok)]/[0.03] p-6"
-      >
+      <h1 className="text-title font-semibold tracking-tight text-balance text-fg">
+        Sell to AI buyers.
+      </h1>
+      <p className="mt-3 text-body leading-relaxed text-fg-muted">
+        Every purchase gated, explained and audited — and every refusal handed back with an
+        alternative the buyer is allowed to accept.
+      </p>
+
+      <form onSubmit={submit} className="mt-10 space-y-5">
         <Field label="Merchant email">
           <Input type="email" value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -71,20 +77,25 @@ export default function MerchantLogin({ onSignedIn }) {
         <Button type="submit" variant="approve" disabled={busy} className="w-full">
           {busy ? 'Signing in…' : 'Sign in to console'}
         </Button>
-
-        <p className="pt-1 text-center text-label tracking-normal normal-case text-fg-faint">
-          Demo merchants: <code className="font-mono">blinkit@velora.local</code>,{' '}
-          <code className="font-mono">demostore@velora.local</code> /{' '}
-          <code className="font-mono">merchant123</code>
-        </p>
       </form>
 
-      <p className="mt-6 text-center text-small text-fg-faint">
-        Buying with an agent?{' '}
-        <Link to="/login" className="font-medium text-brand-400 hover:text-brand-500">
-          Buyer sign-in →
-        </Link>
-      </p>
+      <div className="mt-10 border-t border-ink-900 pt-5">
+        <p className="text-label tracking-normal normal-case text-fg-faint">
+          Demo merchants{' '}
+          <span className="font-mono text-fg-subtle">blinkit@velora.local</span>,{' '}
+          <span className="font-mono text-fg-subtle">demostore@velora.local</span>
+          <span className="mx-1.5 text-ink-700">/</span>
+          <span className="font-mono text-fg-subtle">merchant123</span>
+        </p>
+        <p className="mt-2.5 text-label tracking-normal normal-case text-fg-faint">
+          Buying with an agent?{' '}
+          <Link to="/login"
+            className="font-medium text-brand-400 transition-colors hover:text-brand-300"
+          >
+            Buyer sign-in →
+          </Link>
+        </p>
+      </div>
     </div>
   )
 }

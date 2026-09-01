@@ -80,7 +80,7 @@ export default function Transactions() {
       ) : !data?.length ? (
         <Empty title="Nothing here" hint="No transactions match this filter." />
       ) : (
-        <div className="-mx-2 overflow-x-auto">
+        <div className="edge-fade -mx-2 overflow-x-auto">
           <table className="w-full min-w-[780px]">
             <thead>
               <tr className="border-b border-ink-800">
@@ -95,12 +95,19 @@ export default function Transactions() {
                 ))}
               </tr>
             </thead>
+            {/* Rows are generous and reveal on hover: at a glance the ledger
+                reads as a block of aligned figures, and the row under the
+                cursor lifts out of it without any colour being added. */}
             <tbody className="divide-y divide-ink-900">
               {data.map(({ transaction: t, amount_display }) => (
-                <tr key={t.id} className="transition-colors hover:bg-ink-950">
-                  <td className="px-2 py-3">
-                    <Link to={`/app/audit/${t.id}`} className="block max-w-[220px] group">
-                      <div className="truncate text-small text-fg transition-colors group-hover:text-brand-300">
+                <tr key={t.id} className="group transition-colors duration-[var(--dur-fast)] hover:bg-ink-950">
+                  <td className="relative px-2 py-3.5">
+                    <span
+                      aria-hidden
+                      className="absolute inset-y-0 left-0 w-px origin-center scale-y-0 bg-brand-500 transition-transform duration-[var(--dur-base)] ease-[var(--ease-out-soft)] group-hover:scale-y-100"
+                    />
+                    <Link to={`/app/audit/${t.id}`} className="block max-w-[220px]">
+                      <div className="truncate text-small text-fg transition-colors duration-[var(--dur-fast)] group-hover:text-brand-300">
                         {t.product_name}
                       </div>
                       <Mono className="mt-0.5 block truncate">
@@ -108,20 +115,20 @@ export default function Transactions() {
                       </Mono>
                     </Link>
                   </td>
-                  <td className="tnum px-2 py-3 text-small text-fg-muted">{amount_display}</td>
-                  <td className="px-2 py-3">
+                  <td className="tnum px-2 py-3.5 text-small font-medium text-fg">{amount_display}</td>
+                  <td className="px-2 py-3.5">
                     <DecisionBadge decision={t.decision} />
                   </td>
-                  <td className="px-2 py-3">
+                  <td className="px-2 py-3.5">
                     <StateBadge state={t.state} />
                   </td>
-                  <td className="px-2 py-3">
+                  <td className="px-2 py-3.5">
                     <Mono>{t.reason_code}</Mono>
                   </td>
-                  <td className="px-2 py-3">
+                  <td className="px-2 py-3.5">
                     <Mono className="tnum">{dateTimeOf(t.created_at)}</Mono>
                   </td>
-                  <td className="px-2 py-3">
+                  <td className="px-2 py-3.5">
                     <RowActions txn={t} reload={reload} config={config} />
                   </td>
                 </tr>

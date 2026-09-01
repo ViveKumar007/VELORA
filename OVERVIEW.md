@@ -20,7 +20,7 @@ it, see [runinst.md](runinst.md).
 | **Database** | PostgreSQL — required (JSONB, `SELECT … FOR UPDATE`, unique indexes) |
 | **Payments** | Pluggable provider: in-process `stub` (default) or Razorpay |
 | **Live updates** | Server-Sent Events, in-process bus |
-| **Tests** | 117 tests across 7 files (unit tests run anywhere; DB tests auto-skip) |
+| **Tests** | 131 tests across 7 files (unit tests run anywhere; DB tests auto-skip) |
 | **Auth** | Three distinct caller kinds: agents, buyers, merchants |
 | **Money** | Integer **paise** everywhere; rupees exist only at the API edge |
 | **Schema mgmt** | `Base.metadata.create_all` (Alembic is a dependency but unused) |
@@ -75,7 +75,7 @@ VELORA/
 │   │   │   └── routes/            auth · catalog · merchants · agents · policies ·
 │   │   │                          gate · transactions · approvals · webhooks · dashboard
 │   │   └── utils/money.py       paise ↔ rupees, format_inr
-│   └── tests/                   conftest + 7 test modules (117 tests)
+│   └── tests/                   conftest + 7 test modules (131 tests)
 └── frontend/
     ├── vite.config.js           dev proxy /api → 127.0.0.1:8000 (never "localhost")
     └── src/
@@ -451,17 +451,17 @@ Frontend build-time: `VITE_OPERATOR_TOKEN` (must match `OPERATOR_TOKEN` when tha
 
 ## 16. Tests — [backend/tests/](backend/tests/)
 
-**117 tests** across seven modules. Unit tests run anywhere; integration tests skip automatically
+**131 tests** across seven modules. Unit tests run anywhere; integration tests skip automatically
 when no database is reachable at `TEST_DATABASE_URL`.
 
 | File | Tests | Covers |
 |---|---|---|
+| `test_gate.py` | 30 | All 13 checks and verdict precedence |
 | `test_flows.py` | 27 | End-to-end request → decision → approval → payment paths |
-| `test_gate.py` | 23 | All 13 checks and verdict precedence |
 | `test_auth.py` | 21 | Password hashing, session tokens, audience separation |
 | `test_security.py` | 17 | Identity, impersonation, webhook signatures, operator token |
-| `test_agent.py` | 11 | Intent parsing, scoring, selection |
-| `test_state_machine.py` | 10 | The lifecycle graph and its invariant |
+| `test_agent.py` | 16 | Intent parsing, scoring, selection |
+| `test_state_machine.py` | 12 | The lifecycle graph and its invariant |
 | `test_recovery.py` | 8 | In-policy alternatives on a block |
 
 A fixture in [conftest.py](backend/tests/conftest.py) is autouse and **unconditionally forces the
@@ -488,8 +488,10 @@ scenario getting its own agent and policy so none can contaminate another).
 
 ### Documentation drift
 
-- `README.md` claims **81 tests** in one place and **97** in another; the suite currently holds
-  **117**.
+- `README.md` claims **81 tests** in one place and **97** in another. `pytest --collect-only`
+  currently reports **131** — 117 `def test_` functions that expand to 131 cases through
+  parametrisation. The landing page's "131 tests passing" is the accurate figure; the two
+  README numbers are stale.
 - The README's "demo in five clicks" predates the login layer — both consoles now sit behind
   `/login` and `/merchant/login`. Credentials are printed by the seed
   (`demo@velora.local` / `velora123`, `<slug>@velora.local` / `merchant123`).

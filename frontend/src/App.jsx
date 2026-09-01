@@ -48,24 +48,40 @@ function BuyerShell({ children }) {
     navigate('/login', { replace: true })
   }
 
+  /**
+   * The active item is marked by a lit rail on the leading edge that grows
+   * into place, rather than by a filled pill. A pill turns navigation into a
+   * row of buttons; a rail keeps the list reading as a list and uses the same
+   * connection language as everything else in the product.
+   */
   const nav = (
-    <nav className="flex flex-col gap-0.5">
+    <nav className="flex flex-col gap-px">
       {NAV.map((item) => (
         <NavLink key={item.to} to={item.to} end={item.end}
           onClick={() => setDrawer(false)}
           className={({ isActive }) =>
-            `flex items-center justify-between rounded-lg px-3 py-2 text-small font-medium transition ${
+            `group relative flex items-center justify-between rounded-[var(--radius-sm)] py-2 pr-3 pl-4 text-small font-medium transition-colors duration-[var(--dur-base)] ease-[var(--ease-out-soft)] ${
               isActive
-                ? 'bg-brand-500/12 text-brand-300 ring-1 ring-brand-500/20'
+                ? 'bg-brand-500/[0.09] text-brand-300'
                 : 'text-fg-subtle hover:bg-ink-900 hover:text-fg'
             }`
           }
         >
-          {item.label}
-          {item.badge && pending > 0 && (
-            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[color:var(--color-warn)]/20 px-1 text-label tracking-normal normal-case font-semibold text-[color:var(--color-warn)] ring-1 ring-[color:var(--color-warn)]/40">
-              {pending}
-            </span>
+          {({ isActive }) => (
+            <>
+              <span
+                aria-hidden
+                className={`absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-brand-400 transition-transform duration-[var(--dur-base)] ease-[var(--ease-out-soft)] ${
+                  isActive ? 'scale-y-100' : 'scale-y-0'
+                }`}
+              />
+              {item.label}
+              {item.badge && pending > 0 && (
+                <span className="tnum inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[color:var(--color-warn)]/15 px-1 text-label tracking-normal normal-case font-semibold text-[color:var(--color-warn)] ring-1 ring-[color:var(--color-warn)]/30">
+                  {pending}
+                </span>
+              )}
+            </>
           )}
         </NavLink>
       ))}
@@ -75,19 +91,19 @@ function BuyerShell({ children }) {
   return (
     <div className="flex min-h-full">
       {/* Sidebar — desktop */}
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-ink-900 bg-ink-1000 px-4 py-5 lg:flex">
-        <NavLink to="/" className="mb-8 px-1">
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-ink-900 bg-ink-1000 px-4 py-6 lg:flex">
+        <NavLink to="/" className="mb-10 px-1">
           <Logo size={22} live={connected} />
         </NavLink>
         {nav}
-        <div className="mt-auto space-y-2 pt-6">
+        <div className="mt-auto space-y-4 pt-8">
           <NavLink to="/app/demo"
             onClick={() => setDrawer(false)}
-            className="block rounded-lg border border-brand-500/25 bg-brand-500/[0.07] px-3 py-2.5 text-small font-medium text-brand-300 transition hover:bg-brand-500/12"
+            className="block rounded-[var(--radius-sm)] border border-brand-500/25 bg-brand-500/[0.07] px-3 py-2.5 text-small font-medium text-brand-300 transition-colors duration-[var(--dur-base)] ease-[var(--ease-out-soft)] hover:border-brand-500/40 hover:bg-brand-500/12"
           >
-            ▸ Live Demo
+            Live Demo
           </NavLink>
-          <div className="flex items-center justify-between rounded-lg px-3 py-2">
+          <div className="flex items-center justify-between gap-2 border-t border-ink-900 px-1 pt-4">
             <div className="min-w-0">
               <div className="truncate text-label tracking-normal normal-case text-fg-muted">
                 {profile?.name || 'Signed in'}
@@ -96,7 +112,7 @@ function BuyerShell({ children }) {
             </div>
             <button
               onClick={signOut}
-              className="ml-2 shrink-0 text-label tracking-normal normal-case text-fg-faint transition hover:text-fg-muted"
+              className="shrink-0 text-label tracking-normal normal-case text-fg-faint transition-colors duration-[var(--dur-fast)] hover:text-fg-muted"
             >
               Sign out
             </button>
@@ -104,28 +120,30 @@ function BuyerShell({ children }) {
         </div>
       </aside>
 
-      {/* Drawer — mobile */}
+      {/* Drawer — mobile. It travels in from the edge it belongs to; the
+          previous vertical fade read as a rendering glitch rather than as a
+          panel arriving. */}
       {drawer && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="v-scrim absolute inset-0 bg-black/65 backdrop-blur-sm"
             onClick={() => setDrawer(false)}
           />
-          <aside className="v-enter absolute top-0 bottom-0 left-0 w-64 border-r border-ink-800 bg-ink-1000 px-4 py-5">
-            <div className="mb-8 px-1">
+          <aside className="v-drawer absolute top-0 bottom-0 left-0 flex w-72 max-w-[85vw] flex-col border-r border-ink-800 bg-ink-1000 px-4 py-5 shadow-[var(--shadow-float)]">
+            <div className="mb-9 px-1">
               <Logo size={22} live={connected} />
             </div>
             {nav}
-            <div className="mt-8">
+            <div className="mt-auto space-y-2 pt-8">
               <NavLink to="/app/demo"
                 onClick={() => setDrawer(false)}
-                className="block rounded-lg border border-brand-500/25 bg-brand-500/[0.07] px-3 py-2.5 text-small font-medium text-brand-300"
+                className="block rounded-[var(--radius-sm)] border border-brand-500/25 bg-brand-500/[0.07] px-3 py-3 text-small font-medium text-brand-300 transition-colors duration-[var(--dur-base)] hover:bg-brand-500/12"
               >
-                ▸ Live Demo
+                Live Demo
               </NavLink>
               <button
                 onClick={signOut}
-                className="mt-2 w-full rounded-lg px-3 py-2 text-left text-small text-fg-subtle"
+                className="w-full rounded-[var(--radius-sm)] px-3 py-3 text-left text-small text-fg-subtle transition-colors duration-[var(--dur-base)] hover:bg-ink-900 hover:text-fg"
               >
                 Sign out
               </button>

@@ -49,7 +49,7 @@ export class ApiError extends Error {
  *   'agent'    an agent bearer token
  *   'none'     public endpoints
  */
-async function request(method, path, { body, auth = 'user' } = {}) {
+async function request(method, path, { body, auth = 'user', signal } = {}) {
   const headers = { 'Content-Type': 'application/json' }
   if (OPERATOR_TOKEN) headers['X-Velora-Token'] = OPERATOR_TOKEN
 
@@ -62,9 +62,13 @@ async function request(method, path, { body, auth = 'user' } = {}) {
     if (token) headers.Authorization = `Bearer ${token}`
   }
 
+  // `signal` abandons the *response*, not the work. The server does not learn
+  // that the caller walked away, so anything already committed stays
+  // committed. Callers that offer a cancel button have to say so.
   const res = await fetch(path, {
     method,
     headers,
+    signal,
     body: body === undefined ? undefined : JSON.stringify(body),
   })
 
@@ -124,7 +128,17 @@ export const api = {
     }),
 
   // Agent-authenticated calls.
-  runAgent: (body) => request('POST', '/api/agent/run', { body, auth: 'agent' }),
+  runAgent: (body, { signal } = {}) =>
+    request('POST', '/api/agent/run', { body, auth: 'agent', signal }),
+
+  // Assemble a shopping list from a goal. Proposes only; submits nothing.
+  basket: (goal, { signal } = {}) =>
+    request('POST', '/api/agent/basket', { body: { goal }, auth: 'agent', signal }),
+
+  // Ask the gate to authorize a whole basket as one decision. Only product
+  // ids travel — prices are re-read from the catalog server-side.
+  basketRequest: (body) =>
+    request('POST', '/api/agent/basket/request', { body, auth: 'agent' }),
   requestPurchase: (body) => request('POST', '/api/agent/request', { body, auth: 'agent' }),
 
   // --- Auth ---

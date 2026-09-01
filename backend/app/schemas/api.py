@@ -353,6 +353,31 @@ class AgentRunOut(BaseModel):
     transaction: TransactionView | None = None
 
 
+class BasketIn(BaseModel):
+    """Ask the agent to assemble a shopping list. Nothing is submitted."""
+
+    goal: str = Field(min_length=3, max_length=500)
+
+
+class BasketOut(BaseModel):
+    goal: str
+    basket: dict[str, Any]
+
+
+class BasketRequestIn(BaseModel):
+    """Submit a basket to the gate as one authorization decision.
+
+    Only product ids travel. Prices are re-read from the catalog and summed
+    server-side, so a client cannot understate what its basket is worth.
+    """
+
+    product_ids: list[str] = Field(min_length=1, max_length=40)
+    idempotency_key: str = Field(min_length=8, max_length=120)
+    label: str = Field(default="", max_length=200)
+    rationale: str | None = None
+    agent_id: str | None = None
+
+
 # --- Payments ------------------------------------------------------------
 
 

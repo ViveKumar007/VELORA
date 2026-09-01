@@ -86,7 +86,7 @@ export default function AuditTrail() {
             {!trail?.entries?.length ? (
               <Empty title="No events recorded" />
             ) : (
-              <div className="-mx-2 overflow-x-auto">
+              <div className="edge-fade -mx-2 overflow-x-auto">
                 <table className="w-full min-w-[600px]">
                   <thead>
                     <tr className="border-b border-ink-800">

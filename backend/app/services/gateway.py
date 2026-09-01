@@ -338,6 +338,238 @@ def handle_purchase_request(
     return txn, False
 
 
+def handle_basket_request(
+    db: Session,
+    agent: Agent,
+    *,
+    product_ids: list[str],
+    idempotency_key: str,
+    label: str = "",
+    claimed_agent_id: str | None = None,
+    agent_rationale: str | None = None,
+    currency: str = "INR",
+) -> tuple[TransactionRequest, bool]:
+    """Evaluate a multi-item basket as ONE authorization decision.
+
+    Same transaction, same row lock, same reservation, same audit chain as a
+    single purchase -- the only difference is that the amount is a sum and the
+    scope checks judge every merchant and category in the basket rather than
+    one of each.
+
+    The agent sends product ids and nothing else. Every price is re-read from
+    the catalog here and summed server-side, so a client that posts a basket
+    claiming to be worth 200 rupees still gets judged on what those items
+    actually cost. That is the same rule as the single-item path, and it is
+    the reason a spending limit means anything.
+    """
+    now = utcnow()
+    unique_ids = list(dict.fromkeys(pid for pid in product_ids if pid))
+    if not unique_ids:
+        raise ValueError("A basket needs at least one product.")
+
+    fingerprint = _fingerprint(agent.id, ",".join(sorted(unique_ids)), currency)
+
+    existing = db.scalars(
+        select(TransactionRequest).where(
+            TransactionRequest.agent_id == agent.id,
+            TransactionRequest.idempotency_key == idempotency_key,
+        )
+    ).first()
+    if existing is not None:
+        return _replay(db, existing, fingerprint, idempotency_key), True
+
+    products = list(db.scalars(select(Product).where(Product.id.in_(unique_ids))))
+    found = {p.id: p for p in products}
+    missing = [pid for pid in unique_ids if pid not in found]
+
+    # Order the lines the way the caller asked for them, so the ledger reads
+    # like the basket the person confirmed.
+    lines = [found[pid] for pid in unique_ids if pid in found]
+    total = sum(p.price_paise for p in lines)
+    merchants = sorted({p.merchant for p in lines if p.merchant})
+    categories = sorted({p.category for p in lines if p.category})
+
+    snapshot = {
+        "items": [
+            {
+                "product_id": p.id,
+                "name": p.name,
+                "price_paise": p.price_paise,
+                "price_display": format_inr(p.price_paise),
+                "merchant": p.merchant,
+                "category": p.category,
+            }
+            for p in lines
+        ],
+        "count": len(lines),
+        "total_paise": total,
+        "merchants": merchants,
+        "categories": categories,
+        "missing_product_ids": missing,
+    }
+
+    txn = TransactionRequest(
+        agent_id=agent.id,
+        user_id=agent.user_id,
+        product_id=None,
+        product_name=(label or f"Basket of {len(lines)} items")[:200],
+        merchant=", ".join(merchants)[:120],
+        category=", ".join(categories)[:60],
+        requested_amount_paise=total,
+        currency=currency,
+        idempotency_key=idempotency_key,
+        request_fingerprint=fingerprint,
+        state=str(TxnState.CREATED),
+        agent_rationale=agent_rationale,
+        basket=snapshot,
+    )
+
+    savepoint = db.begin_nested()
+    try:
+        db.add(txn)
+        db.flush()
+        savepoint.commit()
+    except IntegrityError:
+        savepoint.rollback()
+        winner = db.scalars(
+            select(TransactionRequest).where(
+                TransactionRequest.agent_id == agent.id,
+                TransactionRequest.idempotency_key == idempotency_key,
+            )
+        ).first()
+        if winner is None:
+            raise
+        replayed = _replay(db, winner, fingerprint, idempotency_key)
+        db.commit()
+        return replayed, True
+
+    audit.record(
+        db,
+        event_type=EventType.REQUEST_RECEIVED,
+        transaction_id=txn.id,
+        agent_id=agent.id,
+        actor=agent.id,
+        explanation=(
+            f"Agent {agent.name} requested a basket of {len(lines)} items "
+            f"for {format_inr(total)} across {', '.join(merchants) or 'no merchant'}."
+        ),
+        new_state=str(TxnState.CREATED),
+        metadata={"basket": snapshot, "idempotency_key": idempotency_key},
+    )
+
+    policy = budget.active_policy_for_agent(db, agent.id)
+    if policy is not None:
+        txn.policy_id = policy.id
+        txn.policy_snapshot = _snapshot_policy(policy)
+
+    move_state(
+        db, txn, TxnState.EVALUATING,
+        event_type=EventType.EVALUATION_STARTED,
+        explanation=f"Policy evaluation started for {len(lines)} basket items.",
+    )
+
+    ctx = EvalContext(
+        agent=agent,
+        now=now,
+        policy=policy,
+        # No single product: a basket is not one catalog row, and the checks
+        # that need one (product resolved, stock) read the basket instead.
+        product=lines[0] if len(lines) == 1 else None,
+        amount_paise=total,
+        currency=currency,
+        category=categories[0] if categories else "",
+        merchant=merchants[0] if merchants else "",
+        merchants=merchants,
+        categories=categories,
+        claimed_agent_id=claimed_agent_id,
+        metadata={"basket": snapshot},
+    )
+    verdict = evaluate(ctx)
+
+    txn.decision = str(verdict.decision)
+    txn.reason_code = str(verdict.reason_code)
+    txn.explanation = verdict.explanation
+    txn.checks = verdict.checks_as_dicts()
+    txn.decided_at = now
+
+    for result in verdict.checks:
+        if result.status == "SKIP":
+            continue
+        audit.record(
+            db,
+            event_type=EventType.CHECK_EVALUATED,
+            transaction_id=txn.id,
+            agent_id=agent.id,
+            policy_id=txn.policy_id,
+            decision=str(result.status),
+            reason_code=str(result.reason_code) if result.reason_code else None,
+            explanation=f"{result.name}: {result.detail}",
+            metadata={"check": result.name, "status": str(result.status)},
+        )
+
+    if verdict.decision == Decision.BLOCKED:
+        # No recovery offer for a basket: swapping one line of five for a
+        # cheaper substitute is a decision for the person who assembled it,
+        # and the console already offers alternatives per line.
+        move_state(
+            db, txn, TxnState.BLOCKED,
+            event_type=EventType.DECISION_MADE,
+            decision=str(verdict.decision),
+            reason_code=str(verdict.reason_code),
+            explanation=verdict.explanation,
+        )
+        db.commit()
+        return txn, False
+
+    budget.reserve(db, policy, txn)
+    audit.record(
+        db,
+        event_type=EventType.BUDGET_RESERVED,
+        transaction_id=txn.id,
+        agent_id=agent.id,
+        policy_id=policy.id,
+        explanation=(
+            f"Reserved {format_inr(total)} for {len(lines)} items; "
+            f"{format_inr(policy.remaining_budget_paise)} of "
+            f"{format_inr(policy.total_budget_paise)} remains."
+        ),
+        metadata={
+            "reserved_paise": total,
+            "remaining_paise": policy.remaining_budget_paise,
+            "items": len(lines),
+        },
+    )
+
+    if verdict.decision == Decision.PENDING_APPROVAL:
+        move_state(
+            db, txn, TxnState.PENDING_APPROVAL,
+            event_type=EventType.DECISION_MADE,
+            decision=str(verdict.decision),
+            reason_code=str(verdict.reason_code),
+            explanation=verdict.explanation,
+        )
+        db.add(
+            ApprovalRequest(
+                transaction_id=txn.id,
+                user_id=agent.user_id,
+                prompt=verdict.explanation,
+                expires_at=now + timedelta(minutes=settings.approval_ttl_minutes),
+            )
+        )
+        db.flush()
+    else:
+        move_state(
+            db, txn, TxnState.APPROVED,
+            event_type=EventType.DECISION_MADE,
+            decision=str(verdict.decision),
+            reason_code=str(verdict.reason_code),
+            explanation=verdict.explanation,
+        )
+
+    db.commit()
+    return txn, False
+
+
 def _replay(
     db: Session,
     existing: TransactionRequest,

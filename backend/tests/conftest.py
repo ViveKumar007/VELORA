@@ -59,6 +59,29 @@ def force_stub_provider(monkeypatch):
     get_provider.cache_clear()
 
 
+@pytest.fixture(autouse=True)
+def no_live_model(monkeypatch):
+    """Never let the suite call Gemini.
+
+    Exactly the hazard the payment fixture above exists for, at a second
+    edge. The moment a key was put in .env the suite began making live API
+    calls: slow, dependent on someone's quota, billable, and non-deterministic
+    -- two tests started failing purely because a real model answered instead
+    of the rules parser.
+
+    Tests that care about Gemini's behaviour feed `_from_gemini` a dict
+    directly or stub `httpx.post`, which is both faster and actually
+    repeatable.
+    """
+    from app.config import settings
+    from app.services import gemini
+
+    monkeypatch.setattr(settings, "gemini_api_key", "")
+    gemini.clear_cache()
+    yield
+    gemini.clear_cache()
+
+
 @pytest.fixture(scope="session")
 def engine():
     from app.models import Base

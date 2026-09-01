@@ -231,6 +231,15 @@ class TransactionRequest(Base, TimestampMixin):
     #: stays truthful even if the catalog changes afterwards.
     recovery: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
+    #: The line items, when this transaction is a basket rather than a single
+    #: product. Null for an ordinary purchase.
+    #:
+    #: Snapshotted like policy_snapshot and for the same reason: it records
+    #: what was actually authorized. A live join back to products would let a
+    #: later price change rewrite history, and the audit trail has to stay
+    #: true to the moment the decision was made.
+    basket: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+
     payment_order_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
     payment_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
     payment_error: Mapped[str | None] = mapped_column(Text, nullable=True)

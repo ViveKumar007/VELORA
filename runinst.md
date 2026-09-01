@@ -242,7 +242,7 @@ cd backend
 python -m pytest tests/ -q
 ```
 
-**117 tests.** Unit tests need no database. Integration tests are skipped automatically if none
+**131 tests.** Unit tests need no database. Integration tests are skipped automatically if none
 is reachable — to run them, point at a scratch database:
 
 **Git Bash / macOS / Linux:**

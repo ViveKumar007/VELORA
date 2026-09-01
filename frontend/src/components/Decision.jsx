@@ -28,7 +28,7 @@ export function ChecksList({ checks = [], dense = false }) {
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2">
                   <span className="text-small font-medium text-fg">{check.name}</span>
-                  <span className={`text-label tracking-normal normal-case font-semibold tracking-wide ${style.text}`}>
+                  <span className={`text-label font-semibold ${style.text}`}>
                     {style.label}
                   </span>
                 </div>
@@ -101,7 +101,7 @@ export function DecisionPanel({ txn, amountDisplay, showChecks = true, footer })
           <div className="mt-3 rounded-lg border border-[color:var(--color-ok)]/30 bg-[color:var(--color-ok)]/[0.06] p-3">
             <div className="mb-1.5 flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--color-ok)]" />
-              <span className="text-label tracking-normal normal-case font-semibold tracking-wide text-[color:var(--color-ok)] uppercase">
+              <span className="eyebrow text-[color:var(--color-ok)]">
                 In-policy alternative
               </span>
             </div>
@@ -132,7 +132,7 @@ export function DecisionPanel({ txn, amountDisplay, showChecks = true, footer })
 
       {showChecks && txn.checks?.length > 0 && (
         <div className="border-t border-ink-800/80 px-2 py-2">
-          <p className="px-2.5 pb-1 pt-1 text-label tracking-normal normal-case font-medium tracking-wide text-fg-faint uppercase">
+          <p className="eyebrow px-2.5 pt-1 pb-1">
             Policy checks
           </p>
           <ChecksList checks={txn.checks} dense />

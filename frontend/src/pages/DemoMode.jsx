@@ -120,28 +120,33 @@ export default function DemoMode() {
       </header>
 
       <main className="mx-auto max-w-5xl px-6 py-10">
-        {/* Control */}
-        <div className="rounded-2xl border border-ink-800 bg-ink-900/60 p-6">
-          <label className="mb-2 block text-label tracking-normal normal-case font-medium tracking-wide text-fg-subtle uppercase">
+        {/* Control. No panel — the goal field is the largest type on the page
+            because stating the goal is the only thing a presenter does here. */}
+        <div>
+          <label className="eyebrow mb-3 block">
             Tell the agent what you want
           </label>
           <textarea value={goal}
             onChange={(e) => setGoal(e.target.value)} rows={2} disabled={running}
-            className="w-full resize-none rounded-xl border border-ink-700 bg-ink-850 px-4 py-3 text-heading text-fg placeholder:text-fg-faint focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none disabled:opacity-60"
+            className="w-full resize-none rounded-[var(--radius-md)] border border-[color:var(--color-border-control)] bg-ink-900 px-4 py-3.5 text-heading leading-relaxed text-fg transition-colors duration-[var(--dur-fast)] placeholder:text-fg-faint hover:border-ink-500 focus:border-brand-500 disabled:opacity-60"
           />
 
           <div className="mt-3 flex flex-wrap gap-1.5">
             {GOALS.map((g) => (
               <button key={g} disabled={running}
                 onClick={() => setGoal(g)}
-                className="rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1 text-label tracking-normal normal-case text-fg-subtle transition hover:text-fg-muted disabled:opacity-50"
+                className={`rounded-[var(--radius-sm)] border px-2.5 py-1 text-label tracking-normal normal-case transition-all duration-[var(--dur-fast)] disabled:opacity-50 ${
+                  goal === g
+                    ? 'border-brand-500/50 bg-brand-500/12 text-brand-300'
+                    : 'border-ink-800 bg-ink-900 text-fg-subtle hover:border-ink-600 hover:text-fg-muted'
+                }`}
               >
                 {g.length > 40 ? `${g.slice(0, 40)}…` : g}
               </button>
             ))}
           </div>
 
-          <div className="mt-5 flex gap-2">
+          <div className="mt-6 flex gap-2">
             <Button variant="primary" onClick={run} disabled={running} className="px-6">
               {running ? 'Running…' : 'Run live demo'}
             </Button>
@@ -157,33 +162,44 @@ export default function DemoMode() {
           )}
         </div>
 
-        {/* Sequence */}
-        <ol className="mt-8 space-y-2">
+        {/* Sequence.
+
+            One continuous rail with a node per stage, rather than seven
+            separate boxes. A purchase moving through the gate IS one
+            connected process, and the rail lets the eye follow it in the
+            order it actually happens — which is the whole thing being
+            demonstrated. */}
+        <ol className="mt-12">
           {SCRIPT.map((s, i) => {
             const done = stage > i
             const active = stage === i
+            const last = i === SCRIPT.length - 1
             return (
               <li key={s.key}
-                className={`flex items-start gap-4 rounded-xl border px-5 py-4 transition-all duration-300 ${
-                  active
-                    ? 'border-brand-500/40 bg-brand-500/[0.07]'
-                    : done
-                      ? 'border-ink-800 bg-ink-950'
-                      : 'border-ink-900 bg-ink-1000 opacity-45'
+                className={`relative flex gap-5 pb-8 last:pb-0 transition-opacity duration-300 ${
+                  done || active ? 'opacity-100' : 'opacity-40'
                 }`}
               >
+                {/* The connection to the next stage. It fills in only once
+                    this stage has actually resolved. */}
+                {!last && (
+                  <span aria-hidden
+                    className={`absolute top-4 bottom-0 left-[5px] w-px ${
+                      done ? 'bg-[color:var(--color-ok)]/35' : 'bg-ink-800'
+                    }`}
+                  />
+                )}
                 <span
-                  className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-lg text-label tracking-normal normal-case font-semibold ${
+                  aria-hidden
+                  className={`relative mt-1.5 h-[11px] w-[11px] shrink-0 rounded-full ring-4 ring-[color:var(--color-ink-1000)] transition-colors duration-300 ${
                     done
-                      ? 'bg-[color:var(--color-ok)]/15 text-[color:var(--color-ok)] ring-1 ring-[color:var(--color-ok)]/30'
+                      ? 'bg-[color:var(--color-ok)]'
                       : active
-                        ? 'bg-brand-500/20 text-brand-300 ring-1 ring-brand-500/40 v-live'
-                        : 'bg-ink-800 text-fg-faint'
+                        ? 'v-live bg-brand-500'
+                        : 'bg-ink-700'
                   }`}
-                >
-                  {done ? '✓' : i + 1}
-                </span>
-                <div className="min-w-0 flex-1">
+                />
+                <div className="min-w-0 flex-1 pt-px">
                   <div className="text-small font-medium text-fg">{s.label}</div>
                   <div className="mt-0.5 text-small text-fg-subtle">{s.detail}</div>
 
@@ -309,7 +325,7 @@ function Verdict({ txn, amount }) {
 
       {txn.recovery && (
         <div className="mt-3 rounded-lg border border-[color:var(--color-ok)]/25 bg-[color:var(--color-ok)]/[0.06] p-3">
-          <div className="text-label tracking-normal normal-case font-semibold tracking-widest text-[color:var(--color-ok)] uppercase">
+          <div className="eyebrow text-[color:var(--color-ok)]">
             In-policy alternative
           </div>
           <div className="mt-1.5 flex flex-wrap items-baseline gap-2">

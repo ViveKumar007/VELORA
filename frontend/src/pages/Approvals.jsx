@@ -160,15 +160,24 @@ function Decision({ item, onDone }) {
         </div>
       )}
 
+      {/* While a decision is in flight the acting button carries the live
+          node, so the moment reads as the system working rather than as the
+          interface having gone unresponsive. */}
       <div className="mt-9 flex flex-wrap items-center gap-3">
         <Button variant="approve"
           onClick={() => act('approve')} disabled={busy !== null || expired}
-          className="px-6"
+          className={`px-6 ${busy === 'approve' ? 'v-live' : ''}`}
         >
-          {busy === 'approve' ? 'Approving…' : `Approve ${item.amount_display}`}
+          {busy === 'approve' && (
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
+          )}
+          {busy === 'approve' ? 'Approving' : `Approve ${item.amount_display}`}
         </Button>
         <Button variant="danger" onClick={() => act('reject')} disabled={busy !== null}>
-          {busy === 'reject' ? 'Rejecting…' : 'Reject'}
+          {busy === 'reject' && (
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
+          )}
+          {busy === 'reject' ? 'Rejecting' : 'Reject'}
         </Button>
         <Link to={`/app/audit/${t.id}`}
           className="ml-auto text-label tracking-normal normal-case text-brand-400 transition-colors hover:text-brand-300"

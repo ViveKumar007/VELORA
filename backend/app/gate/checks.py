@@ -131,6 +131,33 @@ def check_validity_window(ctx: EvalContext) -> CheckResult:
 
 def check_product_available(ctx: EvalContext) -> CheckResult:
     name = "Product Resolved"
+
+    # A basket resolves many rows rather than one, and every line was read
+    # from the catalog server-side before it got here -- a product id that
+    # matched nothing never became a line. So the check is that the basket
+    # is non-empty and nothing in it is out of stock.
+    if ctx.is_basket:
+        basket = (ctx.metadata or {}).get("basket") or {}
+        items = basket.get("items") or []
+        missing = basket.get("missing_product_ids") or []
+        if missing:
+            return CheckResult(
+                name, CheckStatus.FAIL,
+                f"{len(missing)} requested product id(s) match no catalog row.",
+                ReasonCode.PRODUCT_NOT_FOUND,
+            )
+        if not items:
+            return CheckResult(
+                name, CheckStatus.FAIL,
+                "The basket is empty.",
+                ReasonCode.PRODUCT_NOT_FOUND,
+            )
+        return CheckResult(
+            name, CheckStatus.PASS,
+            f"Resolved {len(items)} catalog items totalling "
+            f"{format_inr(basket.get('total_paise', 0))}.",
+        )
+
     if ctx.product is None:
         return CheckResult(
             name, CheckStatus.FAIL,
@@ -171,38 +198,75 @@ def check_transaction_quota(ctx: EvalContext) -> CheckResult:
 
 
 def check_merchant(ctx: EvalContext) -> CheckResult:
+    """Every merchant involved must be approved.
+
+    A single purchase has exactly one, and this reads as it always did. A
+    basket can span several, and the rule there is unanimity rather than
+    majority: an authorization that permits Blinkit and Zepto does not permit
+    a basket containing one Amazon line, and approving the basket would be
+    approving that line. The refusal names the offender rather than the set,
+    because "one of your items is not allowed" is not an actionable message.
+    """
     name = "Merchant"
     if ctx.policy is None:
         return _skip(name)
     allowed = ctx.policy.allowed_merchants or []
     if not allowed:
         return CheckResult(name, CheckStatus.PASS, "Policy does not restrict merchants.")
-    wanted = normalize_merchant(ctx.merchant)
-    if wanted not in {normalize_merchant(m) for m in allowed}:
+
+    permitted = {normalize_merchant(m) for m in allowed}
+    wanted = ctx.all_merchants()
+    refused = [m for m in wanted if normalize_merchant(m) not in permitted]
+
+    if refused:
+        subject = ", ".join(refused)
+        lead = (
+            f"{subject} is not an approved merchant."
+            if len(refused) == 1
+            else f"{subject} are not approved merchants."
+        )
         return CheckResult(
             name, CheckStatus.FAIL,
-            f"{ctx.merchant} is not an approved merchant. Allowed: {', '.join(allowed)}.",
+            f"{lead} Allowed: {', '.join(allowed)}.",
             ReasonCode.MERCHANT_NOT_ALLOWED,
+        )
+
+    if len(wanted) > 1:
+        return CheckResult(
+            name, CheckStatus.PASS,
+            f"All {len(wanted)} merchants are approved: {', '.join(wanted)}.",
         )
     return CheckResult(name, CheckStatus.PASS, f"{ctx.merchant} is an approved merchant.")
 
 
 def check_category(ctx: EvalContext) -> CheckResult:
+    """Every category involved must be permitted. Unanimity, as above."""
     name = "Category"
     if ctx.policy is None:
         return _skip(name)
     allowed = ctx.policy.allowed_categories or []
     if not allowed:
         return CheckResult(name, CheckStatus.PASS, "Policy does not restrict categories.")
-    wanted = normalize_category(ctx.category)
-    if wanted not in {normalize_category(c) for c in allowed}:
+
+    permitted = {normalize_category(c) for c in allowed}
+    wanted = ctx.all_categories()
+    refused = [c for c in wanted if normalize_category(c) not in permitted]
+
+    if refused:
+        subject = ", ".join(f"'{c}'" for c in refused)
         return CheckResult(
             name, CheckStatus.FAIL,
             (
-                f"Category '{ctx.category}' is outside this authorization, which "
+                f"Category {subject} is outside this authorization, which "
                 f"permits only: {', '.join(allowed)}."
             ),
             ReasonCode.CATEGORY_NOT_ALLOWED,
+        )
+
+    if len(wanted) > 1:
+        return CheckResult(
+            name, CheckStatus.PASS,
+            f"All {len(wanted)} categories are permitted: {', '.join(wanted)}.",
         )
     return CheckResult(name, CheckStatus.PASS, f"Category '{ctx.category}' is permitted.")
 

@@ -62,6 +62,27 @@ class EvalContext:
     claimed_agent_id: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    #: Every merchant and category in a multi-item basket.
+    #:
+    #: A single purchase has one of each, and these stay empty. A basket of
+    #: ingredients routinely spans two shops -- rice from Zepto, paneer from
+    #: Blinkit -- and the scope checks have to judge all of them, because a
+    #: basket is only inside the boundary if every line in it is. Empty means
+    #: "fall back to the singular field", so single-purchase behaviour is
+    #: byte-for-byte unchanged.
+    merchants: list[str] = field(default_factory=list)
+    categories: list[str] = field(default_factory=list)
+
+    def all_merchants(self) -> list[str]:
+        return self.merchants or ([self.merchant] if self.merchant else [])
+
+    def all_categories(self) -> list[str]:
+        return self.categories or ([self.category] if self.category else [])
+
+    @property
+    def is_basket(self) -> bool:
+        return bool(self.merchants or self.categories)
+
 
 @dataclass
 class Verdict:

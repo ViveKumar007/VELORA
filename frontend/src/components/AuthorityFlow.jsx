@@ -37,19 +37,41 @@ function toneFor(status) {
   return 'idle'
 }
 
+/**
+ * One resolved check.
+ *
+ * The connector to the next step draws downward as this one settles, so the
+ * eye is pulled through the evaluation in the order it actually happened
+ * rather than being handed a finished list. The node seats itself at the same
+ * moment — that pairing is what makes the sequence read as a mechanism
+ * working rather than as content appearing.
+ */
 export function FlowStep({ label, value, status = 'PASS', last = false, index = 0 }) {
   const tone = TONE[toneFor(status)]
+  const delay = `${index * 60}ms`
   return (
     <li
-      className="v-resolve relative flex gap-4 pb-5 last:pb-0" style={{ animationDelay: `${index * 60}ms` }}
+      className="v-resolve group relative flex gap-4 pb-5 last:pb-0" style={{ animationDelay: delay }}
     >
       {!last && (
-        <span className={`absolute top-3 bottom-0 left-[3px] w-px ${tone.line}`} aria-hidden />
+        <span
+          aria-hidden
+          className={`v-draw absolute top-3 bottom-0 left-[3px] w-px ${tone.line}`} style={{ animationDelay: delay }}
+        />
       )}
-      <span className={`relative mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full ${tone.dot}`} />
+      <span
+        aria-hidden
+        className={`v-seat relative mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full ${tone.dot}`} style={{ animationDelay: delay }}
+      />
+      {/* The check's name is set in its own sentence case and the verdict in
+          mono caps. Setting both in caps put two shouting columns next to
+          each other and made a thirteen-row checklist markedly harder to
+          scan than it needed to be. */}
       <div className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
-        <span className="eyebrow">{label}</span>
-        <span className={`tnum text-small ${tone.value}`}>{value}</span>
+        <span className="text-small text-fg-muted transition-colors duration-[var(--dur-fast)] group-hover:text-fg">
+          {label}
+        </span>
+        <span className={`tnum font-mono text-label ${tone.value}`}>{value}</span>
       </div>
     </li>
   )
